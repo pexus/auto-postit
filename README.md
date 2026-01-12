@@ -43,7 +43,7 @@ Built for small business owners, content creators, and music labels who need a s
 
 - [x] Requirements & Research
 - [x] Documentation
-- [ ] Project Scaffolding
+- [x] Project Scaffolding
 - [ ] Authentication & MFA
 - [ ] Core Post Management
 - [ ] Platform Integrations
@@ -55,7 +55,71 @@ Built for small business owners, content creators, and music labels who need a s
 
 ## 🚀 Getting Started
 
-> ⚠️ Setup instructions will be available once the initial implementation is complete.
+### Prerequisites
+
+- Node.js >= 20.0.0
+- Docker & Docker Compose
+- Git
+
+### Local Development Setup
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/pexus/auto-postit.git
+   cd auto-postit
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm run install:all
+   ```
+
+3. **Start database services**
+   ```bash
+   npm run docker:dev
+   ```
+
+4. **Configure environment**
+   ```bash
+   cp backend/.env.example backend/.env
+   # Edit backend/.env with your settings
+   ```
+
+5. **Run database migrations**
+   ```bash
+   npm run db:generate
+   npm run db:migrate
+   ```
+
+6. **Start development servers**
+   ```bash
+   npm run dev
+   ```
+
+   - Frontend: http://localhost:5173
+   - Backend API: http://localhost:3001
+
+### Project Structure
+
+```
+auto-postit/
+├── backend/           # Express.js API
+│   ├── src/
+│   │   ├── config/    # Environment configuration
+│   │   ├── lib/       # Shared utilities
+│   │   ├── middleware/# Express middleware
+│   │   └── routes/    # API routes
+│   └── prisma/        # Database schema
+├── frontend/          # React SPA
+│   └── src/
+│       ├── components/# UI components
+│       ├── contexts/  # React contexts
+│       ├── layouts/   # Page layouts
+│       ├── lib/       # Utilities
+│       └── pages/     # Page components
+├── docs/              # Documentation
+└── docker-compose.yml # Development services
+```
 
 ## 📄 License
 

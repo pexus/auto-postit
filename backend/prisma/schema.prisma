@@ -1,0 +1,343 @@
+// Prisma Schema for Auto-PostIt
+// Social Media Scheduling Application
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// USER & AUTHENTICATION
+// ============================================================================
+
+model User {
+  id                  String    @id @default(uuid())
+  email               String    @unique
+  passwordHash        String
+  name                String?
+  
+  // MFA
+  mfaEnabled          Boolean   @default(false)
+  mfaSecret           String?   // Encrypted TOTP secret
+  mfaBackupCodes      String[]  // Encrypted backup codes
+  mfaVerifiedAt       DateTime?
+  
+  // Account status
+  isActive            Boolean   @default(true)
+  isSetupComplete     Boolean   @default(false)
+  
+  // Timestamps
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  lastLoginAt         DateTime?
+  
+  // Relations
+  sessions            Session[]
+  platforms           Platform[]
+  posts               Post[]
+  mediaFiles          MediaFile[]
+  auditLogs           AuditLog[]
+  quotaUsages         QuotaUsage[]
+  
+  @@map("users")
+}
+
+model Session {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  sessionToken  String   @unique
+  userAgent     String?
+  ipAddress     String?
+  
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
+  lastActiveAt  DateTime @default(now())
+  
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+// ============================================================================
+// PLATFORM CONNECTIONS
+// ============================================================================
+
+enum PlatformType {
+  TWITTER
+  LINKEDIN
+  FACEBOOK
+  INSTAGRAM
+  YOUTUBE
+  PINTEREST
+}
+
+model Platform {
+  id                  String       @id @default(uuid())
+  userId              String
+  user                User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  type                PlatformType
+  name                String       // Display name (e.g., "@myhandle" or "My Page")
+  platformUserId      String       // Platform's user/page ID
+  platformUsername    String?      // Platform's username/handle
+  
+  // OAuth tokens (encrypted)
+  accessToken         String       // Encrypted
+  refreshToken        String?      // Encrypted
+  tokenExpiresAt      DateTime?
+  
+  // Platform-specific metadata
+  metadata            Json?        // Store platform-specific data
+  
+  // Status
+  isActive            Boolean      @default(true)
+  lastSyncAt          DateTime?
+  
+  // Timestamps
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  
+  // Relations
+  posts               PostPlatform[]
+  quotaUsages         QuotaUsage[]
+  
+  @@unique([userId, type, platformUserId])
+  @@index([userId])
+  @@map("platforms")
+}
+
+// ============================================================================
+// POSTS & MEDIA
+// ============================================================================
+
+enum PostStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHING
+  PUBLISHED
+  PARTIALLY_PUBLISHED
+  FAILED
+}
+
+model Post {
+  id              String     @id @default(uuid())
+  userId          String
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Content
+  content         String     // Main text content
+  
+  // Scheduling
+  status          PostStatus @default(DRAFT)
+  scheduledAt     DateTime?
+  publishedAt     DateTime?
+  
+  // Timestamps
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  
+  // Relations
+  platforms       PostPlatform[]
+  mediaFiles      PostMedia[]
+  
+  @@index([userId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@map("posts")
+}
+
+model PostPlatform {
+  id              String       @id @default(uuid())
+  postId          String
+  post            Post         @relation(fields: [postId], references: [id], onDelete: Cascade)
+  platformId      String
+  platform        Platform     @relation(fields: [platformId], references: [id], onDelete: Cascade)
+  
+  // Platform-specific content override
+  contentOverride String?      // If different from main content
+  
+  // Publishing result
+  status          PostStatus   @default(DRAFT)
+  platformPostId  String?      // ID of the post on the platform
+  platformPostUrl String?      // URL to the published post
+  publishedAt     DateTime?
+  errorMessage    String?
+  
+  // Timestamps
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  
+  @@unique([postId, platformId])
+  @@index([postId])
+  @@index([platformId])
+  @@map("post_platforms")
+}
+
+model MediaFile {
+  id              String    @id @default(uuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  filename        String    // Original filename
+  storagePath     String    // Path in storage
+  mimeType        String
+  size            Int       // Size in bytes
+  
+  // Image/video metadata
+  width           Int?
+  height          Int?
+  duration        Int?      // Duration in seconds for video
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  
+  // Relations
+  posts           PostMedia[]
+  
+  @@index([userId])
+  @@map("media_files")
+}
+
+model PostMedia {
+  id          String    @id @default(uuid())
+  postId      String
+  post        Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  mediaFileId String
+  mediaFile   MediaFile @relation(fields: [mediaFileId], references: [id], onDelete: Cascade)
+  
+  order       Int       @default(0)  // Order of media in post
+  altText     String?   // Accessibility text
+  
+  @@unique([postId, mediaFileId])
+  @@index([postId])
+  @@map("post_media")
+}
+
+// ============================================================================
+// QUOTA TRACKING
+// ============================================================================
+
+model QuotaUsage {
+  id              String       @id @default(uuid())
+  userId          String
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platformId      String?
+  platform        Platform?    @relation(fields: [platformId], references: [id], onDelete: SetNull)
+  
+  platformType    PlatformType
+  periodStart     DateTime     // Start of the quota period
+  periodEnd       DateTime     // End of the quota period
+  
+  // Usage counts
+  requestCount    Int          @default(0)
+  postCount       Int          @default(0)
+  
+  // Limits (stored for reference)
+  requestLimit    Int?
+  postLimit       Int?
+  
+  // Timestamps
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  
+  @@unique([userId, platformType, periodStart])
+  @@index([userId])
+  @@index([platformType])
+  @@index([periodStart])
+  @@map("quota_usages")
+}
+
+// ============================================================================
+// AUDIT LOGGING
+// ============================================================================
+
+enum AuditAction {
+  // Auth
+  LOGIN_SUCCESS
+  LOGIN_FAILURE
+  LOGOUT
+  MFA_ENABLED
+  MFA_DISABLED
+  MFA_VERIFIED
+  PASSWORD_CHANGED
+  
+  // Platform
+  PLATFORM_CONNECTED
+  PLATFORM_DISCONNECTED
+  PLATFORM_TOKEN_REFRESHED
+  
+  // Posts
+  POST_CREATED
+  POST_UPDATED
+  POST_DELETED
+  POST_SCHEDULED
+  POST_PUBLISHED
+  POST_FAILED
+  
+  // Settings
+  SETTINGS_UPDATED
+}
+
+model AuditLog {
+  id          String      @id @default(uuid())
+  userId      String?
+  user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  action      AuditAction
+  entityType  String?     // e.g., "Post", "Platform"
+  entityId    String?     // ID of the affected entity
+  
+  // Request metadata
+  ipAddress   String?
+  userAgent   String?
+  
+  // Additional details
+  metadata    Json?       // Any additional context
+  
+  // Timestamp
+  createdAt   DateTime    @default(now())
+  
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ============================================================================
+// JOB QUEUE (for tracking scheduled jobs)
+// ============================================================================
+
+model ScheduledJob {
+  id          String   @id @default(uuid())
+  jobId       String   @unique  // BullMQ job ID
+  jobType     String   // e.g., "publish_post"
+  
+  // Reference
+  entityType  String   // e.g., "Post"
+  entityId    String   // ID of the entity
+  
+  // Scheduling
+  scheduledAt DateTime
+  
+  // Status
+  status      String   @default("pending")  // pending, processing, completed, failed
+  attempts    Int      @default(0)
+  lastError   String?
+  
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  completedAt DateTime?
+  
+  @@index([jobId])
+  @@index([entityType, entityId])
+  @@index([scheduledAt])
+  @@index([status])
+  @@map("scheduled_jobs")
+}
