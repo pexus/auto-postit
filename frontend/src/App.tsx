@@ -19,6 +19,7 @@ import { CreatePostPage } from '@/pages/posts/CreatePostPage';
 import { PlatformsPage } from '@/pages/platforms/PlatformsPage';
 import { QuotaPage } from '@/pages/quota/QuotaPage';
 import { SettingsPage } from '@/pages/settings/SettingsPage';
+import { ImportPage } from '@/pages/import/ImportPage';
 
 function App() {
   return (
@@ -37,6 +38,7 @@ function App() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/posts" element={<PostsPage />} />
             <Route path="/posts/new" element={<CreatePostPage />} />
+            <Route path="/posts/import" element={<ImportPage />} />
             <Route path="/platforms" element={<PlatformsPage />} />
             <Route path="/quota" element={<QuotaPage />} />
             <Route path="/settings" element={<SettingsPage />} />
