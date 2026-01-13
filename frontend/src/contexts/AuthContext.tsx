@@ -1,16 +1,24 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '@/lib/api';
+
+interface User {
+  id: string;
+  email: string;
+  name: string | null;
+  mfaEnabled: boolean;
+}
 
 interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   mfaRequired: boolean;
   mfaVerified: boolean;
+  user: User | null;
 }
 
 interface AuthContextType extends AuthState {
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<{ mfaRequired: boolean }>;
   logout: () => Promise<void>;
   verifyMfa: (code: string) => Promise<void>;
   checkSession: () => Promise<void>;
@@ -20,21 +28,29 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [state, setState] = useState<AuthState>({
     isAuthenticated: false,
     isLoading: true,
     mfaRequired: false,
     mfaVerified: false,
+    user: null,
   });
 
-  const checkSession = async () => {
+  const checkSession = useCallback(async () => {
     try {
-      const response = await api.get('/auth/session');
+      const response = await api.get<{
+        authenticated: boolean;
+        mfaVerified?: boolean;
+        user?: User;
+      }>('/auth/session');
+      
       setState({
         isAuthenticated: response.data.authenticated,
         isLoading: false,
-        mfaRequired: response.data.authenticated && !response.data.mfaVerified,
+        mfaRequired: response.data.authenticated && response.data.user?.mfaEnabled && !response.data.mfaVerified,
         mfaVerified: response.data.mfaVerified ?? false,
+        user: response.data.user ?? null,
       });
     } catch {
       setState({
@@ -42,42 +58,81 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading: false,
         mfaRequired: false,
         mfaVerified: false,
+        user: null,
       });
     }
-  };
+  }, []);
 
   useEffect(() => {
     checkSession();
-  }, []);
+  }, [checkSession]);
 
-  const login = async (email: string, password: string) => {
-    const response = await api.post('/auth/login', { email, password });
-    
+  const login = async (email: string, password: string): Promise<{ mfaRequired: boolean }> => {
+    const response = await api.post<{ mfaRequired: boolean; user?: User }>('/auth/login', {
+      email,
+      password,
+    });
+
     if (response.data.mfaRequired) {
-      setState(prev => ({ ...prev, mfaRequired: true }));
-      navigate('/mfa');
+      setState(prev => ({
+        ...prev,
+        isAuthenticated: true,
+        mfaRequired: true,
+        mfaVerified: false,
+      }));
+      return { mfaRequired: true };
     } else {
-      await checkSession();
-      navigate('/dashboard');
+      setState(prev => ({
+        ...prev,
+        isAuthenticated: true,
+        mfaRequired: false,
+        mfaVerified: true,
+        user: response.data.user ?? null,
+      }));
+      return { mfaRequired: false };
     }
   };
 
   const logout = async () => {
-    await api.post('/auth/logout');
-    setState({
-      isAuthenticated: false,
-      isLoading: false,
-      mfaRequired: false,
-      mfaVerified: false,
-    });
-    navigate('/login');
+    try {
+      await api.post('/auth/logout');
+    } finally {
+      setState({
+        isAuthenticated: false,
+        isLoading: false,
+        mfaRequired: false,
+        mfaVerified: false,
+        user: null,
+      });
+      navigate('/login');
+    }
   };
 
   const verifyMfa = async (code: string) => {
-    await api.post('/auth/mfa/verify', { code });
-    await checkSession();
-    navigate('/dashboard');
+    const response = await api.post<{ user: User }>('/auth/mfa/verify', { code });
+    setState(prev => ({
+      ...prev,
+      mfaRequired: false,
+      mfaVerified: true,
+      user: response.data.user,
+    }));
   };
+
+  // Redirect logic based on auth state
+  useEffect(() => {
+    if (state.isLoading) return;
+
+    const publicPaths = ['/login', '/setup', '/mfa'];
+    const isPublicPath = publicPaths.includes(location.pathname);
+
+    if (!state.isAuthenticated && !isPublicPath) {
+      navigate('/login');
+    } else if (state.isAuthenticated && state.mfaRequired && location.pathname !== '/mfa') {
+      navigate('/mfa');
+    } else if (state.isAuthenticated && state.mfaVerified && isPublicPath) {
+      navigate('/dashboard');
+    }
+  }, [state.isAuthenticated, state.mfaRequired, state.mfaVerified, state.isLoading, location.pathname, navigate]);
 
   return (
     <AuthContext.Provider value={{ ...state, login, logout, verifyMfa, checkSession }}>
