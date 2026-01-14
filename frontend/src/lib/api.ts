@@ -1,18 +1,49 @@
 const API_BASE = '';
 
+interface RequestConfig {
+  params?: Record<string, string | undefined>;
+  headers?: Record<string, string>;
+}
+
 class ApiClient {
+  private buildUrl(path: string, params?: Record<string, string | undefined>): string {
+    const url = new URL(`${API_BASE}${path}`, window.location.origin);
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) {
+          url.searchParams.append(key, value);
+        }
+      });
+    }
+    return url.pathname + url.search;
+  }
+
   private async request<T>(
     method: string,
     path: string,
-    data?: unknown
+    data?: unknown,
+    config?: RequestConfig
   ): Promise<{ data: T }> {
-    const response = await fetch(`${API_BASE}${path}`, {
+    const url = this.buildUrl(path, config?.params);
+    
+    const headers: Record<string, string> = {
+      ...config?.headers,
+    };
+    
+    // Only set Content-Type for non-FormData
+    if (!(data instanceof FormData)) {
+      headers['Content-Type'] = 'application/json';
+    }
+    
+    const response = await fetch(url, {
       method,
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       credentials: 'include',
-      body: data ? JSON.stringify(data) : undefined,
+      body: data 
+        ? data instanceof FormData 
+          ? data 
+          : JSON.stringify(data) 
+        : undefined,
     });
 
     if (!response.ok) {
@@ -24,20 +55,20 @@ class ApiClient {
     return { data: responseData };
   }
 
-  get<T>(path: string) {
-    return this.request<T>('GET', path);
+  get<T>(path: string, config?: RequestConfig) {
+    return this.request<T>('GET', path, undefined, config);
   }
 
-  post<T>(path: string, data?: unknown) {
-    return this.request<T>('POST', path, data);
+  post<T>(path: string, data?: unknown, config?: RequestConfig) {
+    return this.request<T>('POST', path, data, config);
   }
 
-  put<T>(path: string, data?: unknown) {
-    return this.request<T>('PUT', path, data);
+  put<T>(path: string, data?: unknown, config?: RequestConfig) {
+    return this.request<T>('PUT', path, data, config);
   }
 
-  delete<T>(path: string) {
-    return this.request<T>('DELETE', path);
+  delete<T>(path: string, config?: RequestConfig) {
+    return this.request<T>('DELETE', path, undefined, config);
   }
 }
 

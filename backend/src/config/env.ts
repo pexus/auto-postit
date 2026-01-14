@@ -1,5 +1,9 @@
 import { z } from 'zod';
 
+// Helper for optional URL that treats empty string as undefined
+const optionalUrl = z.string().transform(val => val === '' ? undefined : val).pipe(z.string().url().optional());
+const optionalString = z.string().transform(val => val === '' ? undefined : val).pipe(z.string().optional());
+
 const envSchema = z.object({
   // Server
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -24,32 +28,39 @@ const envSchema = z.object({
   MFA_ISSUER: z.string().default('Auto-PostIt'),
   
   // OAuth - Twitter/X
-  TWITTER_CLIENT_ID: z.string().optional(),
-  TWITTER_CLIENT_SECRET: z.string().optional(),
-  TWITTER_CALLBACK_URL: z.string().url().optional(),
+  TWITTER_CLIENT_ID: optionalString,
+  TWITTER_CLIENT_SECRET: optionalString,
+  TWITTER_CALLBACK_URL: optionalUrl,
   
   // OAuth - LinkedIn
-  LINKEDIN_CLIENT_ID: z.string().optional(),
-  LINKEDIN_CLIENT_SECRET: z.string().optional(),
-  LINKEDIN_CALLBACK_URL: z.string().url().optional(),
+  LINKEDIN_CLIENT_ID: optionalString,
+  LINKEDIN_CLIENT_SECRET: optionalString,
+  LINKEDIN_CALLBACK_URL: optionalUrl,
   
   // OAuth - Facebook
-  FACEBOOK_APP_ID: z.string().optional(),
-  FACEBOOK_APP_SECRET: z.string().optional(),
-  FACEBOOK_CALLBACK_URL: z.string().url().optional(),
+  FACEBOOK_APP_ID: optionalString,
+  FACEBOOK_APP_SECRET: optionalString,
+  FACEBOOK_CALLBACK_URL: optionalUrl,
   
   // OAuth - Instagram (uses Facebook)
-  INSTAGRAM_CALLBACK_URL: z.string().url().optional(),
+  INSTAGRAM_CALLBACK_URL: optionalUrl,
   
   // OAuth - YouTube (Google)
-  GOOGLE_CLIENT_ID: z.string().optional(),
-  GOOGLE_CLIENT_SECRET: z.string().optional(),
-  GOOGLE_CALLBACK_URL: z.string().url().optional(),
+  GOOGLE_CLIENT_ID: optionalString,
+  GOOGLE_CLIENT_SECRET: optionalString,
+  GOOGLE_CALLBACK_URL: optionalUrl,
   
   // OAuth - Pinterest
-  PINTEREST_APP_ID: z.string().optional(),
-  PINTEREST_APP_SECRET: z.string().optional(),
-  PINTEREST_CALLBACK_URL: z.string().url().optional(),
+  PINTEREST_APP_ID: optionalString,
+  PINTEREST_APP_SECRET: optionalString,
+  PINTEREST_CALLBACK_URL: optionalUrl,
+  
+  // Media Storage
+  MEDIA_PATH: z.string().default('./media'),
+  MEDIA_UPLOADS_PATH: z.string().default('./uploads'),
+  MEDIA_MAX_IMAGE_SIZE: z.string().default('10485760').transform(Number), // 10 MB
+  MEDIA_MAX_VIDEO_SIZE: z.string().default('524288000').transform(Number), // 500 MB
+  MEDIA_BASE_URL: optionalString, // Optional CDN URL
 });
 
 const parsed = envSchema.safeParse(process.env);

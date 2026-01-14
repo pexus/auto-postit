@@ -3,7 +3,6 @@ import { env } from '../config/env.js';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
-const AUTH_TAG_LENGTH = 16;
 
 /**
  * Encrypts sensitive data (e.g., OAuth tokens) using AES-256-GCM

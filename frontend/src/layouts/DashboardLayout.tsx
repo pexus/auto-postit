@@ -11,6 +11,7 @@ import {
   Menu,
   X,
   Upload,
+  FolderOpen,
 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -19,6 +20,7 @@ const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/posts', icon: FileText, label: 'Posts' },
   { to: '/posts/import', icon: Upload, label: 'Import' },
+  { to: '/media', icon: FolderOpen, label: 'Media' },
   { to: '/platforms', icon: Share2, label: 'Platforms' },
   { to: '/quota', icon: PieChart, label: 'Quota' },
   { to: '/settings', icon: Settings, label: 'Settings' },

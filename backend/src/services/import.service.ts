@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { v4 as uuidv4 } from 'uuid';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import { mediaService } from '@/services/media.service';
 import {
   importRowSchema,
   validateRowForPlatform,
@@ -14,6 +15,15 @@ import {
   SAMPLE_TEMPLATE_DATA,
   SupportedPlatform,
 } from '@/schemas/import.schema';
+
+/**
+ * Resolved media reference
+ */
+interface ResolvedMedia {
+  type: 'local' | 'url';
+  url: string;
+  absolutePath?: string;
+}
 
 /**
  * Import Service - handles parsing and importing spreadsheet data
@@ -28,7 +38,7 @@ class ImportServiceClass {
       skip_empty_lines: true,
       trim: true,
       relax_column_count: true,
-    });
+    }) as Record<string, string>[];
     return records;
   }
 
@@ -43,7 +53,15 @@ class ImportServiceClass {
       ? 'Posts'
       : workbook.SheetNames[0];
     
+    if (!sheetName) {
+      return [];
+    }
+    
     const worksheet = workbook.Sheets[sheetName];
+    if (!worksheet) {
+      return [];
+    }
+    
     const records = XLSX.utils.sheet_to_json<Record<string, string>>(worksheet, {
       defval: '',
     });
@@ -191,13 +209,13 @@ class ImportServiceClass {
             status: 'scheduled',
           });
 
-          logger.info('Imported post from spreadsheet', {
+          logger.info({
             postId: post.id,
             userId,
             platform: row.data.platform,
             scheduledAt: post.scheduledAt,
             importMetadata,
-          });
+          }, 'Imported post from spreadsheet');
         }
       } catch (err) {
         errors.push({
@@ -248,12 +266,12 @@ class ImportServiceClass {
   ): Promise<ImportResult> {
     const { dryRun = false, isPremium = false } = options;
 
-    logger.info('Processing spreadsheet import', {
+    logger.info({
       userId,
       filename: file.originalname,
       mimetype: file.mimetype,
       dryRun,
-    });
+    }, 'Processing spreadsheet import');
 
     // Parse the file based on type
     let rows: Record<string, string>[];
@@ -374,6 +392,63 @@ class ImportServiceClass {
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Posts');
     
     return Buffer.from(XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }));
+  }
+
+  /**
+   * Resolve media URLs, handling both remote URLs and local: paths
+   */
+  async resolveMediaUrls(urls: string[]): Promise<{
+    resolved: ResolvedMedia[];
+    errors: string[];
+  }> {
+    const resolved: ResolvedMedia[] = [];
+    const errors: string[] = [];
+
+    for (const url of urls) {
+      if (mediaService.isLocalPath(url)) {
+        const fileInfo = await mediaService.resolveMediaReference(url);
+        if (fileInfo) {
+          resolved.push({
+            type: 'local',
+            url: fileInfo.url,
+            absolutePath: fileInfo.absolutePath,
+          });
+        } else {
+          errors.push(`Local file not found: ${url}`);
+        }
+      } else {
+        // It's a URL, pass through as-is
+        resolved.push({
+          type: 'url',
+          url,
+        });
+      }
+    }
+
+    return { resolved, errors };
+  }
+
+  /**
+   * Validate local media paths in rows before import
+   */
+  async validateMediaPaths(
+    rows: ValidatedRow[]
+  ): Promise<{ row: number; errors: string[] }[]> {
+    const mediaErrors: { row: number; errors: string[] }[] = [];
+
+    for (const row of rows) {
+      if (row.data.media_urls && row.data.media_urls.length > 0) {
+        const { errors } = await this.resolveMediaUrls(row.data.media_urls);
+        if (errors.length > 0) {
+          mediaErrors.push({
+            row: row.rowNumber,
+            errors,
+          });
+        }
+      }
+    }
+
+    return mediaErrors;
   }
 }
 

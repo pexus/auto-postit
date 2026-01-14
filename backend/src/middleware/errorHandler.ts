@@ -4,7 +4,7 @@ import { logger } from '../lib/logger.js';
 export class AppError extends Error {
   public readonly statusCode: number;
   public readonly isOperational: boolean;
-  public readonly code?: string;
+  public readonly code: string | undefined;
 
   constructor(
     message: string,

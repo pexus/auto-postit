@@ -40,7 +40,7 @@ function getClientInfo(req: Request) {
  * GET /auth/setup-status
  * Check if initial setup is needed
  */
-authRouter.get('/setup-status', async (req: Request, res: Response, next: NextFunction) => {
+authRouter.get('/setup-status', async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const hasUsers = await authService.hasUsers();
     res.json({ setupRequired: !hasUsers });

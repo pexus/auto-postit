@@ -6,10 +6,11 @@ dist/
 build/
 .next/
 
-# Environment files (keep .env.example)
+# Environment files (keep .env.example and .env.prod.example)
 .env
 .env.local
 .env.*.local
+.env.prod
 
 # IDE
 .vscode/
@@ -52,3 +53,10 @@ temp/
 
 # SSL certificates (local dev)
 certs/
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Vite build artifacts
+vite.config.js
+vite.config.d.ts

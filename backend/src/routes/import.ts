@@ -41,24 +41,25 @@ importRouter.post(
   '/spreadsheet',
   requireAuth,
   upload.single('file'),
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       if (!req.file) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: { message: 'No file uploaded' },
         });
+        return;
       }
 
       const dryRun = req.body.dry_run === 'true' || req.body.dry_run === true;
       const userId = req.userId!;
 
-      logger.info('Processing spreadsheet import', {
+      logger.info({
         userId,
         filename: req.file.originalname,
         size: req.file.size,
         dryRun,
-      });
+      }, 'Processing spreadsheet import');
 
       const result = await importService.processFile(
         userId,
@@ -72,7 +73,7 @@ importRouter.post(
 
       // Return appropriate status code
       const statusCode = result.success ? 200 : result.summary.imported > 0 ? 207 : 400;
-      return res.status(statusCode).json(result);
+      res.status(statusCode).json(result);
     } catch (error) {
       next(error);
     }
@@ -114,7 +115,7 @@ importRouter.get('/formats', (_req: Request, res: Response) => {
       { name: 'platform', required: true, description: 'Target platform (x, linkedin, facebook, instagram, youtube, pinterest)' },
       { name: 'scheduled_date', required: true, description: 'ISO 8601 date (e.g., 2025-01-15T10:00:00Z)' },
       { name: 'content', required: true, description: 'Post text content' },
-      { name: 'media_urls', required: false, description: 'Comma-separated media URLs' },
+      { name: 'media_urls', required: false, description: 'Comma-separated media URLs or local paths (prefix with "local:" for files in media folder, e.g., "local:images/photo.jpg")' },
       { name: 'tags', required: false, description: 'Comma-separated tags/hashtags' },
       { name: 'link', required: false, description: 'Link to include in post' },
       { name: 'title', required: false, description: 'Title (YouTube/Pinterest)' },
@@ -129,6 +130,11 @@ importRouter.get('/formats', (_req: Request, res: Response) => {
       instagram: { max_content: 2200, max_media: 10, requires_media: true },
       youtube: { max_content: 5000, max_media: 1, requires_media: true, requires_title: true },
       pinterest: { max_content: 500, max_media: 1, requires_media: true, requires_title: true },
+    },
+    media_paths: {
+      local_prefix: 'local:',
+      example: 'local:images/my-photo.jpg',
+      description: 'Use "local:" prefix to reference files in the media folder',
     },
     templates: {
       csv: '/api/import/template.csv',

@@ -20,6 +20,7 @@ import { PlatformsPage } from '@/pages/platforms/PlatformsPage';
 import { QuotaPage } from '@/pages/quota/QuotaPage';
 import { SettingsPage } from '@/pages/settings/SettingsPage';
 import { ImportPage } from '@/pages/import/ImportPage';
+import MediaPage from '@/pages/media/MediaPage';
 
 function App() {
   return (
@@ -40,6 +41,7 @@ function App() {
             <Route path="/posts/new" element={<CreatePostPage />} />
             <Route path="/posts/import" element={<ImportPage />} />
             <Route path="/platforms" element={<PlatformsPage />} />
+            <Route path="/media" element={<MediaPage />} />
             <Route path="/quota" element={<QuotaPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>

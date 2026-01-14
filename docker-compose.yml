@@ -41,6 +41,10 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  # Note: For development, media and uploads are stored locally in:
+  # - ./media (pre-uploaded media files - read only)
+  # - ./uploads (user uploads via web UI)
+  # Configure MEDIA_PATH and MEDIA_UPLOADS_PATH in .env
 
 networks:
   autopostit-network:

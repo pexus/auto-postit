@@ -154,13 +154,21 @@ export class AuthService {
    * Update user profile
    */
   async updateProfile(userId: string, data: { name?: string; email?: string }): Promise<void> {
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        name: data.name?.trim() || undefined,
-        email: data.email?.toLowerCase().trim() || undefined,
-      },
-    });
+    const updateData: Record<string, string> = {};
+    
+    if (data.name !== undefined && data.name.trim()) {
+      updateData.name = data.name.trim();
+    }
+    if (data.email !== undefined && data.email.trim()) {
+      updateData.email = data.email.toLowerCase().trim();
+    }
+    
+    if (Object.keys(updateData).length > 0) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: updateData,
+      });
+    }
 
     logger.info({ userId }, 'Profile updated');
   }

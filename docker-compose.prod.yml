@@ -55,6 +55,12 @@ services:
       TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY}
       CSRF_SECRET: ${CSRF_SECRET}
       CORS_ORIGIN: ${CORS_ORIGIN}
+      # Media paths
+      MEDIA_PATH: /app/media
+      MEDIA_UPLOADS_PATH: /app/uploads
+      MEDIA_MAX_IMAGE_SIZE: ${MEDIA_MAX_IMAGE_SIZE:-10485760}
+      MEDIA_MAX_VIDEO_SIZE: ${MEDIA_MAX_VIDEO_SIZE:-524288000}
+      MEDIA_BASE_URL: ${MEDIA_BASE_URL:-}
       # OAuth credentials (passed from .env)
       TWITTER_CLIENT_ID: ${TWITTER_CLIENT_ID}
       TWITTER_CLIENT_SECRET: ${TWITTER_CLIENT_SECRET}
@@ -74,6 +80,7 @@ services:
       PINTEREST_CALLBACK_URL: ${PINTEREST_CALLBACK_URL}
     volumes:
       - uploads:/app/uploads
+      - ${MEDIA_HOST_PATH:-./media}:/app/media:ro
     expose:
       - "3001"
     networks:
@@ -89,8 +96,8 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
-    expose:
-      - "80"
+    ports:
+      - "8080:80"
     networks:
       - frontend
 

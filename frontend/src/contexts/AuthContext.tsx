@@ -48,7 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setState({
         isAuthenticated: response.data.authenticated,
         isLoading: false,
-        mfaRequired: response.data.authenticated && response.data.user?.mfaEnabled && !response.data.mfaVerified,
+        mfaRequired: response.data.authenticated && (response.data.user?.mfaEnabled ?? false) && !(response.data.mfaVerified ?? false),
         mfaVerified: response.data.mfaVerified ?? false,
         user: response.data.user ?? null,
       });

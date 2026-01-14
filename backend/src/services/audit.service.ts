@@ -1,5 +1,5 @@
 import { prisma } from '../lib/prisma.js';
-import { AuditAction } from '@prisma/client';
+import { AuditAction, Prisma } from '@prisma/client';
 import { logger } from '../lib/logger.js';
 
 export interface AuditLogInput {
@@ -18,17 +18,23 @@ export class AuditService {
    */
   async log(input: AuditLogInput): Promise<void> {
     try {
-      await prisma.auditLog.create({
-        data: {
-          userId: input.userId,
-          action: input.action,
-          entityType: input.entityType,
-          entityId: input.entityId,
-          ipAddress: input.ipAddress,
-          userAgent: input.userAgent,
-          metadata: input.metadata ?? undefined,
-        },
-      });
+      const data: Prisma.AuditLogCreateInput = {
+        action: input.action,
+        entityType: input.entityType ?? null,
+        entityId: input.entityId ?? null,
+        ipAddress: input.ipAddress ?? null,
+        userAgent: input.userAgent ?? null,
+      };
+      
+      if (input.userId) {
+        data.user = { connect: { id: input.userId } };
+      }
+      
+      if (input.metadata) {
+        data.metadata = input.metadata as Prisma.InputJsonValue;
+      }
+      
+      await prisma.auditLog.create({ data });
 
       logger.debug({
         action: input.action,
