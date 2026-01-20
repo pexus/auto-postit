@@ -1,15 +1,32 @@
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
+import { PlatformType } from '@prisma/client';
+import { platformService } from '../../services/platform.service.js';
 
 export const platformsRouter = Router();
+
+// Validation schemas
+const createDemoPlatformSchema = z.object({
+  type: z.enum(['TWITTER', 'LINKEDIN', 'FACEBOOK', 'INSTAGRAM', 'YOUTUBE', 'PINTEREST']),
+  name: z.string().min(1).max(100),
+  username: z.string().min(1).max(100),
+});
 
 /**
  * GET /api/platforms
  * List all connected platforms
  */
-platformsRouter.get('/', async (_req, res, next) => {
+platformsRouter.get('/', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    // TODO: Implement list platforms
-    res.status(501).json({ error: 'Not implemented' });
+    const userId = req.userId;
+
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const platforms = await platformService.listForUser(userId);
+    res.json({ platforms });
   } catch (error) {
     next(error);
   }
@@ -19,10 +36,61 @@ platformsRouter.get('/', async (_req, res, next) => {
  * GET /api/platforms/:id
  * Get platform details
  */
-platformsRouter.get('/:id', async (_req, res, next) => {
+platformsRouter.get('/:id', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    // TODO: Implement get platform
-    res.status(501).json({ error: 'Not implemented' });
+    const userId = req.userId;
+    const platformId = req.params.id;
+
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    if (!platformId || typeof platformId !== 'string') {
+      res.status(400).json({ error: 'Invalid platform ID' });
+      return;
+    }
+
+    const platform = await platformService.getById(userId, platformId);
+
+    if (!platform) {
+      res.status(404).json({ error: 'Platform not found' });
+      return;
+    }
+
+    res.json(platform);
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/platforms/demo
+ * Create a demo platform for testing (temporary until OAuth is implemented)
+ */
+platformsRouter.post('/demo', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const userId = req.userId;
+
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const body = createDemoPlatformSchema.safeParse(req.body);
+    if (!body.success) {
+      res.status(400).json({ error: 'Invalid request body', details: body.error.flatten() });
+      return;
+    }
+
+    const platform = await platformService.createDemoPlatform(
+      userId,
+      body.data.type as PlatformType,
+      body.data.name,
+      body.data.username
+    );
+
+    res.status(201).json(platform);
   } catch (error) {
     next(error);
   }
@@ -32,10 +100,10 @@ platformsRouter.get('/:id', async (_req, res, next) => {
  * POST /api/platforms/:type/connect
  * Initiate OAuth flow to connect a platform
  */
-platformsRouter.post('/:type/connect', async (_req, res, next) => {
+platformsRouter.post('/:type/connect', async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    // TODO: Implement platform connection initiation
-    res.status(501).json({ error: 'Not implemented' });
+    // TODO: Implement platform connection initiation (OAuth)
+    res.status(501).json({ error: 'OAuth not implemented yet. Use /api/platforms/demo for testing.' });
   } catch (error) {
     next(error);
   }
@@ -45,10 +113,29 @@ platformsRouter.post('/:type/connect', async (_req, res, next) => {
  * DELETE /api/platforms/:id
  * Disconnect a platform
  */
-platformsRouter.delete('/:id', async (_req, res, next) => {
+platformsRouter.delete('/:id', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    // TODO: Implement platform disconnection
-    res.status(501).json({ error: 'Not implemented' });
+    const userId = req.userId;
+    const platformId = req.params.id;
+
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    if (!platformId || typeof platformId !== 'string') {
+      res.status(400).json({ error: 'Invalid platform ID' });
+      return;
+    }
+
+    const deleted = await platformService.delete(userId, platformId);
+
+    if (!deleted) {
+      res.status(404).json({ error: 'Platform not found' });
+      return;
+    }
+
+    res.status(204).send();
   } catch (error) {
     next(error);
   }
@@ -58,7 +145,7 @@ platformsRouter.delete('/:id', async (_req, res, next) => {
  * POST /api/platforms/:id/refresh
  * Manually refresh platform tokens
  */
-platformsRouter.post('/:id/refresh', async (_req, res, next) => {
+platformsRouter.post('/:id/refresh', async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     // TODO: Implement token refresh
     res.status(501).json({ error: 'Not implemented' });
@@ -71,7 +158,7 @@ platformsRouter.post('/:id/refresh', async (_req, res, next) => {
  * GET /api/platforms/:id/status
  * Check platform connection status
  */
-platformsRouter.get('/:id/status', async (_req, res, next) => {
+platformsRouter.get('/:id/status', async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     // TODO: Implement platform status check
     res.status(501).json({ error: 'Not implemented' });

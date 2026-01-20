@@ -1,4 +1,4 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { PostEditor } from '@/components/posts/PostEditor';
 
 export function CreatePostPage() {
   return (
@@ -8,18 +8,7 @@ export function CreatePostPage() {
         <p className="text-muted-foreground">Compose and schedule a new post</p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>New Post</CardTitle>
-          <CardDescription>Write your content and select platforms to publish to</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {/* TODO: Implement post creation form */}
-          <div className="text-center py-12 text-muted-foreground">
-            Post creation form coming soon...
-          </div>
-        </CardContent>
-      </Card>
+      <PostEditor mode="create" />
     </div>
   );
 }

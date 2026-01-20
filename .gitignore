@@ -6,11 +6,13 @@ dist/
 build/
 .next/
 
-# Environment files (keep .env.example and .env.prod.example)
+# Environment files (NEVER commit actual secrets)
+# Only env.example and env.prod.example should be committed
 .env
 .env.local
 .env.*.local
 .env.prod
+.env.production
 
 # IDE
 .vscode/

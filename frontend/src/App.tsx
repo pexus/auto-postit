@@ -16,6 +16,7 @@ import { MfaPage } from '@/pages/auth/MfaPage';
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { PostsPage } from '@/pages/posts/PostsPage';
 import { CreatePostPage } from '@/pages/posts/CreatePostPage';
+import { EditPostPage } from '@/pages/posts/EditPostPage';
 import { PlatformsPage } from '@/pages/platforms/PlatformsPage';
 import { QuotaPage } from '@/pages/quota/QuotaPage';
 import { SettingsPage } from '@/pages/settings/SettingsPage';
@@ -39,6 +40,7 @@ function App() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/posts" element={<PostsPage />} />
             <Route path="/posts/new" element={<CreatePostPage />} />
+            <Route path="/posts/:id/edit" element={<EditPostPage />} />
             <Route path="/posts/import" element={<ImportPage />} />
             <Route path="/platforms" element={<PlatformsPage />} />
             <Route path="/media" element={<MediaPage />} />

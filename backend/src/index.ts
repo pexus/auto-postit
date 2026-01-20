@@ -18,6 +18,9 @@ import { apiRouter } from './routes/api/index.js';
 
 const app = express();
 
+// Trust proxy - required when behind nginx/reverse proxy
+app.set('trust proxy', 1);
+
 // =============================================================================
 // SECURITY MIDDLEWARE
 // =============================================================================
@@ -65,13 +68,19 @@ app.use(cookieParser(env.COOKIE_SECRET));
 // SESSION MIDDLEWARE
 // =============================================================================
 
+// Determine if we should use secure cookies
+// In production, we only use secure cookies if NOT on localhost (for local testing)
+const useSecureCookies = env.NODE_ENV === 'production' && 
+  !env.CORS_ORIGIN.includes('localhost') && 
+  !env.CORS_ORIGIN.includes('127.0.0.1');
+
 app.use(session({
   secret: env.SESSION_SECRET,
   name: 'autopostit.sid',
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: env.NODE_ENV === 'production',
+    secure: useSecureCookies,
     httpOnly: true,
     sameSite: 'lax',
     maxAge: 24 * 60 * 60 * 1000, // 24 hours

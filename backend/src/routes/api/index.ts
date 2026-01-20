@@ -8,6 +8,7 @@ import { mediaRouter } from './media.js';
 import { quotaRouter } from './quota.js';
 import { settingsRouter } from './settings.js';
 import { importRouter } from '../import.js';
+import { aiRouter } from './ai.js';
 
 export const apiRouter = Router();
 
@@ -21,3 +22,4 @@ apiRouter.use('/media', mediaRouter);
 apiRouter.use('/quota', quotaRouter);
 apiRouter.use('/settings', settingsRouter);
 apiRouter.use('/import', importRouter);
+apiRouter.use('/ai', aiRouter);

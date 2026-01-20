@@ -78,6 +78,10 @@ services:
       PINTEREST_APP_ID: ${PINTEREST_APP_ID}
       PINTEREST_APP_SECRET: ${PINTEREST_APP_SECRET}
       PINTEREST_CALLBACK_URL: ${PINTEREST_CALLBACK_URL}
+      # OpenAI
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_DEFAULT_MODEL: ${OPENAI_DEFAULT_MODEL:-gpt-4o-mini}
+      OPENAI_AVAILABLE_MODELS: ${OPENAI_AVAILABLE_MODELS:-gpt-4o,gpt-4o-mini,gpt-3.5-turbo}
     volumes:
       - uploads:/app/uploads
       - ${MEDIA_HOST_PATH:-./media}:/app/media:ro

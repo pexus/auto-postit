@@ -61,6 +61,11 @@ const envSchema = z.object({
   MEDIA_MAX_IMAGE_SIZE: z.string().default('10485760').transform(Number), // 10 MB
   MEDIA_MAX_VIDEO_SIZE: z.string().default('524288000').transform(Number), // 500 MB
   MEDIA_BASE_URL: optionalString, // Optional CDN URL
+  
+  // OpenAI
+  OPENAI_API_KEY: optionalString,
+  OPENAI_DEFAULT_MODEL: z.string().default('gpt-4o-mini'),
+  OPENAI_AVAILABLE_MODELS: z.string().default('gpt-4o,gpt-4o-mini,gpt-3.5-turbo'),
 });
 
 const parsed = envSchema.safeParse(process.env);
