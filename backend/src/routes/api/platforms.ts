@@ -3,6 +3,10 @@ import { z } from 'zod';
 import { PlatformType } from '@prisma/client';
 import { platformService } from '../../services/platform.service.js';
 import { twitterService } from '../../services/twitter.service.js';
+import { linkedInService } from '../../services/linkedin.service.js';
+import { facebookService } from '../../services/facebook.service.js';
+import { pinterestService } from '../../services/pinterest.service.js';
+import { youtubeService } from '../../services/youtube.service.js';
 
 export const platformsRouter = Router();
 
@@ -40,11 +44,11 @@ platformsRouter.get('/', async (req: Request, res: Response, next: NextFunction)
 platformsRouter.get('/config', async (_req: Request, res: Response, _next: NextFunction): Promise<void> => {
   res.json({
     twitter: twitterService.isConfigured(),
-    linkedin: false, // TODO: implement
-    facebook: false, // TODO: implement
-    instagram: false, // TODO: implement
-    youtube: false, // TODO: implement
-    pinterest: false, // TODO: implement
+    linkedin: linkedInService.isConfigured(),
+    facebook: facebookService.isConfigured(),
+    instagram: facebookService.isConfigured(), // Uses Facebook API
+    youtube: youtubeService.isConfigured(),
+    pinterest: pinterestService.isConfigured(),
   });
 });
 
@@ -67,6 +71,131 @@ platformsRouter.get('/twitter/auth-url', async (req: Request, res: Response, nex
     }
 
     const authUrl = twitterService.generateAuthUrl(userId);
+    res.json({ authUrl });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/platforms/linkedin/auth-url
+ * Get LinkedIn authorization URL
+ */
+platformsRouter.get('/linkedin/auth-url', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const userId = req.userId;
+
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    if (!linkedInService.isConfigured()) {
+      res.status(503).json({ error: 'LinkedIn is not configured' });
+      return;
+    }
+
+    const authUrl = linkedInService.getAuthorizationUrl(userId);
+    res.json({ authUrl });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/platforms/facebook/auth-url
+ * Get Facebook authorization URL
+ */
+platformsRouter.get('/facebook/auth-url', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const userId = req.userId;
+
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    if (!facebookService.isConfigured()) {
+      res.status(503).json({ error: 'Facebook is not configured' });
+      return;
+    }
+
+    const authUrl = facebookService.getAuthorizationUrl(userId, 'FACEBOOK');
+    res.json({ authUrl });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/platforms/instagram/auth-url
+ * Get Instagram authorization URL (uses Facebook OAuth)
+ */
+platformsRouter.get('/instagram/auth-url', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const userId = req.userId;
+
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    if (!facebookService.isConfigured()) {
+      res.status(503).json({ error: 'Instagram (via Facebook) is not configured' });
+      return;
+    }
+
+    const authUrl = facebookService.getAuthorizationUrl(userId, 'INSTAGRAM');
+    res.json({ authUrl });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/platforms/youtube/auth-url
+ * Get YouTube/Google authorization URL
+ */
+platformsRouter.get('/youtube/auth-url', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const userId = req.userId;
+
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    if (!youtubeService.isConfigured()) {
+      res.status(503).json({ error: 'YouTube is not configured' });
+      return;
+    }
+
+    const authUrl = youtubeService.getAuthorizationUrl(userId);
+    res.json({ authUrl });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/platforms/pinterest/auth-url
+ * Get Pinterest authorization URL
+ */
+platformsRouter.get('/pinterest/auth-url', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const userId = req.userId;
+
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    if (!pinterestService.isConfigured()) {
+      res.status(503).json({ error: 'Pinterest is not configured' });
+      return;
+    }
+
+    const authUrl = pinterestService.getAuthorizationUrl(userId);
     res.json({ authUrl });
   } catch (error) {
     next(error);

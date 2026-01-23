@@ -194,3 +194,64 @@ export function useTwitterAuthUrl() {
     },
   });
 }
+
+// Get LinkedIn auth URL
+export function useLinkedInAuthUrl() {
+  return useMutation({
+    mutationFn: async () => {
+      const response = await api.get<{ authUrl: string }>('/api/platforms/linkedin/auth-url');
+      return response.data;
+    },
+  });
+}
+
+// Get Facebook auth URL
+export function useFacebookAuthUrl() {
+  return useMutation({
+    mutationFn: async () => {
+      const response = await api.get<{ authUrl: string }>('/api/platforms/facebook/auth-url');
+      return response.data;
+    },
+  });
+}
+
+// Get Instagram auth URL (uses Facebook OAuth)
+export function useInstagramAuthUrl() {
+  return useMutation({
+    mutationFn: async () => {
+      const response = await api.get<{ authUrl: string }>('/api/platforms/instagram/auth-url');
+      return response.data;
+    },
+  });
+}
+
+// Get YouTube auth URL
+export function useYouTubeAuthUrl() {
+  return useMutation({
+    mutationFn: async () => {
+      const response = await api.get<{ authUrl: string }>('/api/platforms/youtube/auth-url');
+      return response.data;
+    },
+  });
+}
+
+// Get Pinterest auth URL
+export function usePinterestAuthUrl() {
+  return useMutation({
+    mutationFn: async () => {
+      const response = await api.get<{ authUrl: string }>('/api/platforms/pinterest/auth-url');
+      return response.data;
+    },
+  });
+}
+
+// Generic hook to get auth URL for any platform
+export function usePlatformAuthUrl(type: PlatformType) {
+  return useMutation({
+    mutationFn: async () => {
+      const platformKey = type.toLowerCase();
+      const response = await api.get<{ authUrl: string }>(`/api/platforms/${platformKey}/auth-url`);
+      return response.data;
+    },
+  });
+}

@@ -1,11 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, CheckCircle, XCircle, ExternalLink, Trash2 } from 'lucide-react';
-import { usePlatforms, useDeletePlatform, usePlatformConfig, useTwitterAuthUrl, PLATFORM_CONFIG, PlatformType } from '@/hooks/usePlatforms';
+import { usePlatforms, useDeletePlatform, usePlatformConfig, PLATFORM_CONFIG, PlatformType } from '@/hooks/usePlatforms';
+import { api } from '@/lib/api';
 import { toast } from '@/hooks/use-toast';
 
 const platformList: { type: PlatformType; name: string; description: string }[] = [
@@ -17,12 +18,24 @@ const platformList: { type: PlatformType; name: string; description: string }[] 
   { type: 'PINTEREST', name: 'Pinterest', description: 'Connect your Pinterest account' },
 ];
 
+const getConfigHint = (type: PlatformType): string => {
+  const hints: Record<PlatformType, string> = {
+    TWITTER: 'Add TWITTER_CLIENT_ID and TWITTER_CLIENT_SECRET to enable.',
+    LINKEDIN: 'Add LINKEDIN_CLIENT_ID and LINKEDIN_CLIENT_SECRET to enable.',
+    FACEBOOK: 'Add FACEBOOK_CLIENT_ID and FACEBOOK_CLIENT_SECRET to enable.',
+    INSTAGRAM: 'Add FACEBOOK_CLIENT_ID and FACEBOOK_CLIENT_SECRET to enable (uses Facebook API).',
+    YOUTUBE: 'Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to enable.',
+    PINTEREST: 'Add PINTEREST_CLIENT_ID and PINTEREST_CLIENT_SECRET to enable.',
+  };
+  return hints[type];
+};
+
 export function PlatformsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: platforms = [], isLoading: platformsLoading, refetch } = usePlatforms();
   const { data: config } = usePlatformConfig();
   const deletePlatform = useDeletePlatform();
-  const twitterAuthUrl = useTwitterAuthUrl();
+  const [connectingPlatform, setConnectingPlatform] = useState<PlatformType | null>(null);
 
   // Handle OAuth callback results
   useEffect(() => {
@@ -41,19 +54,18 @@ export function PlatformsPage() {
 
   const handleConnect = async (type: PlatformType) => {
     try {
-      if (type === 'TWITTER') {
-        const result = await twitterAuthUrl.mutateAsync();
-        // Redirect to Twitter auth
-        window.location.href = result.authUrl;
-      } else {
-        toast({ title: 'Coming soon', description: `${type} connection is not yet implemented`, variant: 'destructive' });
-      }
+      setConnectingPlatform(type);
+      const platformKey = type.toLowerCase();
+      const response = await api.get<{ authUrl: string }>(`/api/platforms/${platformKey}/auth-url`);
+      // Redirect to OAuth provider
+      window.location.href = response.data.authUrl;
     } catch (error) {
       toast({ 
         title: 'Connection failed', 
         description: error instanceof Error ? error.message : 'Unknown error',
         variant: 'destructive' 
       });
+      setConnectingPlatform(null);
     }
   };
 
@@ -148,10 +160,10 @@ export function PlatformsPage() {
                   ) : isConfigured ? (
                     <Button
                       onClick={() => handleConnect(platformInfo.type)}
-                      disabled={twitterAuthUrl.isPending}
+                      disabled={connectingPlatform === platformInfo.type}
                       className="w-full"
                     >
-                      {twitterAuthUrl.isPending && platformInfo.type === 'TWITTER' ? (
+                      {connectingPlatform === platformInfo.type ? (
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       ) : (
                         <ExternalLink className="h-4 w-4 mr-2" />
@@ -161,9 +173,7 @@ export function PlatformsPage() {
                   ) : (
                     <Alert>
                       <AlertDescription className="text-xs">
-                        {platformInfo.type === 'TWITTER' 
-                          ? 'Add TWITTER_CLIENT_ID and TWITTER_CLIENT_SECRET to your environment to enable.'
-                          : 'This platform is not yet configured.'}
+                        {getConfigHint(platformInfo.type)}
                       </AlertDescription>
                     </Alert>
                   )}

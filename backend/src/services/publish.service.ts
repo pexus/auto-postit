@@ -2,6 +2,10 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { prisma } from '../lib/prisma.js';
 import { twitterService } from './twitter.service.js';
+import { linkedInService } from './linkedin.service.js';
+import { facebookService } from './facebook.service.js';
+import { pinterestService } from './pinterest.service.js';
+// import { youtubeService } from './youtube.service.js'; // YouTube posting not yet implemented
 import { logger } from '../lib/logger.js';
 import { env } from '../config/env.js';
 
@@ -25,6 +29,27 @@ class PublishService {
       ? path.resolve(process.cwd(), env.MEDIA_UPLOADS_PATH)
       : path.resolve(process.cwd(), env.MEDIA_PATH);
     return path.join(basePath, relativePath);
+  }
+
+  /**
+   * Resolve media file storage path to a public URL
+   * This is needed for platforms that require URLs instead of file uploads
+   */
+  private resolveMediaUrl(storagePath: string): string {
+    // For now, construct a URL based on our API endpoint
+    // In production, this could be a CDN URL
+    const parts = storagePath.split(':');
+    const source = parts[0];
+    const relativePath = parts.slice(1).join(':');
+    
+    // Construct the URL using the FRONTEND_URL as the base
+    // The backend serves static files at /uploads and /media endpoints
+    const baseUrl = env.CORS_ORIGIN.replace(/\/$/, '');
+    
+    if (source === 'uploads') {
+      return `${baseUrl}/api/media/uploads/${relativePath}`;
+    }
+    return `${baseUrl}/api/media/files/${relativePath}`;
   }
 
   /**
@@ -140,12 +165,53 @@ class PublishService {
             break;
           
           case 'LINKEDIN':
+            const linkedInResult = await linkedInService.createPost(
+              platform.id,
+              content,
+              post.mediaFiles.map(m => this.resolveMediaUrl(m.mediaFile.storagePath))
+            );
+            postUrl = linkedInResult.postUrl;
+            break;
+          
           case 'FACEBOOK':
+            const facebookResult = await facebookService.createPost(
+              platform.id,
+              content,
+              post.mediaFiles.map(m => this.resolveMediaUrl(m.mediaFile.storagePath))
+            );
+            postUrl = facebookResult.postUrl;
+            break;
+          
           case 'INSTAGRAM':
-          case 'YOUTUBE':
+            // Instagram requires media
+            if (post.mediaFiles.length === 0) {
+              throw new Error('Instagram posts require at least one image or video');
+            }
+            const instagramResult = await facebookService.createInstagramPost(
+              platform.id,
+              content,
+              post.mediaFiles.map(m => this.resolveMediaUrl(m.mediaFile.storagePath))
+            );
+            postUrl = instagramResult.postUrl;
+            break;
+          
           case 'PINTEREST':
-            // Not yet implemented
-            throw new Error(`${platform.type} posting is not yet implemented`);
+            // Pinterest requires media
+            if (post.mediaFiles.length === 0) {
+              throw new Error('Pinterest pins require at least one image');
+            }
+            const pinterestResult = await pinterestService.createPin(
+              platform.id,
+              content,
+              post.mediaFiles.map(m => this.resolveMediaUrl(m.mediaFile.storagePath))
+            );
+            postUrl = pinterestResult.postUrl;
+            break;
+          
+          case 'YOUTUBE':
+            // YouTube video upload requires special handling
+            // For now, throw a descriptive error
+            throw new Error('YouTube video upload requires direct upload through YouTube Studio. Community posts are not supported via API.');
           
           default:
             throw new Error(`Unknown platform type: ${platform.type}`);
