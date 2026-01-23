@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import {
   Plus,
@@ -11,6 +11,8 @@ import {
   Pencil,
   Trash2,
   CalendarOff,
+  Image,
+  Repeat2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -30,7 +32,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { usePosts, useDeletePost, useUnschedulePost, Post, PostStatus } from '@/hooks/usePosts';
+import { usePosts, useDeletePost, useUnschedulePost, Post, PostStatus, getMediaUrl } from '@/hooks/usePosts';
 import { PLATFORM_CONFIG, PlatformType } from '@/hooks/usePlatforms';
 import { cn } from '@/lib/utils';
 
@@ -44,6 +46,7 @@ const STATUS_CONFIG: Record<PostStatus, { label: string; variant: 'default' | 's
 };
 
 export function PostsPage() {
+  const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<PostStatus | 'all'>('all');
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; post: Post | null }>({
     open: false,
@@ -63,6 +66,19 @@ export function PostsPage() {
       await deletePost.mutateAsync(deleteDialog.post.id);
       setDeleteDialog({ open: false, post: null });
     }
+  };
+
+  const handleRepost = (post: Post) => {
+    // Navigate to create post with pre-populated content
+    navigate('/posts/new', {
+      state: {
+        repostFrom: {
+          content: post.content,
+          platformIds: post.platforms.map(p => p.platformId),
+          mediaFiles: post.mediaFiles,
+        },
+      },
+    });
   };
 
   return (
@@ -128,6 +144,7 @@ export function PostsPage() {
                   post={post}
                   onDelete={() => setDeleteDialog({ open: true, post })}
                   onUnschedule={() => unschedulePost.mutate(post.id)}
+                  onRepost={() => handleRepost(post)}
                 />
               ))}
             </div>
@@ -170,14 +187,40 @@ interface PostCardProps {
   post: Post;
   onDelete: () => void;
   onUnschedule: () => void;
+  onRepost: () => void;
 }
 
-function PostCard({ post, onDelete, onUnschedule }: PostCardProps) {
+function PostCard({ post, onDelete, onUnschedule, onRepost }: PostCardProps) {
   const statusConfig = STATUS_CONFIG[post.status];
   const StatusIcon = statusConfig.icon;
+  const hasMedia = post.mediaFiles && post.mediaFiles.length > 0;
 
   return (
     <div className="flex items-start gap-4 p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
+      {/* Media Thumbnail */}
+      {hasMedia && (
+        <div className="flex-shrink-0">
+          <div className="relative w-16 h-16 rounded-md overflow-hidden bg-muted">
+            {post.mediaFiles[0].mediaFile.mimeType.startsWith('image/') ? (
+              <img
+                src={getMediaUrl(post.mediaFiles[0].mediaFile.storagePath)}
+                alt=""
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <Image className="h-6 w-6 text-muted-foreground" />
+              </div>
+            )}
+            {post.mediaFiles.length > 1 && (
+              <div className="absolute bottom-0 right-0 bg-black/70 text-white text-xs px-1 rounded-tl">
+                +{post.mediaFiles.length - 1}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Content Preview */}
       <div className="flex-1 min-w-0 space-y-2">
         <p className="text-sm line-clamp-2">{post.content}</p>
@@ -228,6 +271,15 @@ function PostCard({ post, onDelete, onUnschedule }: PostCardProps) {
 
         {/* Action buttons */}
         <div className="flex items-center gap-1">
+          {/* Repost button - available for all posts */}
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={onRepost}
+            title="Repost"
+          >
+            <Repeat2 className="h-4 w-4" />
+          </Button>
           {['DRAFT', 'SCHEDULED'].includes(post.status) && (
             <Button size="icon" variant="ghost" asChild>
               <Link to={`/posts/${post.id}/edit`} title="Edit">

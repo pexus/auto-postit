@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { PlatformType } from '@prisma/client';
 import { platformService } from '../../services/platform.service.js';
+import { twitterService } from '../../services/twitter.service.js';
 
 export const platformsRouter = Router();
 
@@ -27,6 +28,46 @@ platformsRouter.get('/', async (req: Request, res: Response, next: NextFunction)
 
     const platforms = await platformService.listForUser(userId);
     res.json({ platforms });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/platforms/config
+ * Get platform configuration (which platforms are configured)
+ */
+platformsRouter.get('/config', async (_req: Request, res: Response, _next: NextFunction): Promise<void> => {
+  res.json({
+    twitter: twitterService.isConfigured(),
+    linkedin: false, // TODO: implement
+    facebook: false, // TODO: implement
+    instagram: false, // TODO: implement
+    youtube: false, // TODO: implement
+    pinterest: false, // TODO: implement
+  });
+});
+
+/**
+ * GET /api/platforms/twitter/auth-url
+ * Get Twitter authorization URL
+ */
+platformsRouter.get('/twitter/auth-url', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const userId = req.userId;
+
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    if (!twitterService.isConfigured()) {
+      res.status(503).json({ error: 'Twitter is not configured' });
+      return;
+    }
+
+    const authUrl = twitterService.generateAuthUrl(userId);
+    res.json({ authUrl });
   } catch (error) {
     next(error);
   }

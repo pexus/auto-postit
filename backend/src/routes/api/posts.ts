@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { PostStatus, PlatformType } from '@prisma/client';
 import { postService } from '../../services/post.service.js';
+import { publishService } from '../../services/publish.service.js';
 
 export const postsRouter = Router();
 
@@ -309,6 +310,46 @@ postsRouter.post('/:id/unschedule', async (req: Request, res: Response, next: Ne
     if (error instanceof Error && error.message.includes('unschedule')) {
       res.status(400).json({ error: error.message });
       return;
+    }
+    next(error);
+  }
+});
+
+/**
+ * POST /api/posts/:id/publish
+ * Publish a post immediately to all selected platforms
+ */
+postsRouter.post('/:id/publish', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const userId = req.userId;
+    const postId = getPostId(req);
+
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    if (!postId) {
+      res.status(400).json({ error: 'Invalid post ID' });
+      return;
+    }
+
+    const results = await publishService.publishNow(userId, postId);
+
+    // Get updated post
+    const post = await postService.getById(userId, postId);
+
+    res.json({
+      post,
+      results,
+      allSucceeded: results.every(r => r.success),
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message.includes('platform') || error.message.includes('publish') || error.message.includes('Post not found')) {
+        res.status(400).json({ error: error.message });
+        return;
+      }
     }
     next(error);
   }

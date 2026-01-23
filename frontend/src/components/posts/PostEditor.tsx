@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useMemo, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
 import { 
   CalendarIcon, 
@@ -45,9 +45,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { MediaBrowser } from '@/components/media/MediaBrowser';
 import { usePlatforms, PLATFORM_CONFIG, Platform, PlatformType } from '@/hooks/usePlatforms';
-import { useCreatePost, useUpdatePost, Post, CreatePostInput } from '@/hooks/usePosts';
+import { useCreatePost, useUpdatePost, usePublishPost, Post, CreatePostInput } from '@/hooks/usePosts';
 import { useAIConfig, useRefineContent } from '@/hooks/useAI';
-import { MediaFileInfo } from '@/hooks/useMedia';
+import { MediaFileInfo, useMediaRegister } from '@/hooks/useMedia';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 
@@ -56,18 +56,41 @@ interface PostEditorProps {
   mode?: 'create' | 'edit';
 }
 
+// Type for repost data passed via navigation state
+interface RepostState {
+  repostFrom?: {
+    content: string;
+    platformIds: string[];
+    mediaFiles?: Array<{
+      mediaFile: {
+        id: string;
+        storagePath: string;
+        mimeType: string;
+        originalName: string;
+        size: number;
+      };
+    }>;
+  };
+}
+
 export function PostEditor({ post, mode = 'create' }: PostEditorProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { data: platforms = [], isLoading: platformsLoading } = usePlatforms();
   const { data: aiConfig } = useAIConfig();
   const refineContent = useRefineContent();
   const createPost = useCreatePost();
   const updatePost = useUpdatePost();
+  const publishPost = usePublishPost();
+  const registerMedia = useMediaRegister();
+
+  // Get repost data from navigation state
+  const repostData = (location.state as RepostState)?.repostFrom;
 
   // Form state
-  const [content, setContent] = useState(post?.content || '');
+  const [content, setContent] = useState(post?.content || repostData?.content || '');
   const [selectedPlatformIds, setSelectedPlatformIds] = useState<string[]>(
-    post?.platforms.map(p => p.platformId) || []
+    post?.platforms.map(p => p.platformId) || repostData?.platformIds || []
   );
   const [scheduledAt, setScheduledAt] = useState<string>(
     post?.scheduledAt ? format(new Date(post.scheduledAt), "yyyy-MM-dd'T'HH:mm") : ''
@@ -82,6 +105,25 @@ export function PostEditor({ post, mode = 'create' }: PostEditorProps) {
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [refinedContent, setRefinedContent] = useState<string | null>(null);
   const [originalBeforeRefine, setOriginalBeforeRefine] = useState<string | null>(null);
+
+  // Initialize media from repost data
+  useEffect(() => {
+    if (repostData?.mediaFiles && repostData.mediaFiles.length > 0) {
+      const mediaFiles: MediaFileInfo[] = repostData.mediaFiles.map(mf => ({
+        name: mf.mediaFile.originalName,
+        path: mf.mediaFile.storagePath,
+        absolutePath: mf.mediaFile.storagePath,
+        type: mf.mediaFile.mimeType.startsWith('video/') ? 'video' as const : 'image' as const,
+        extension: mf.mediaFile.originalName.split('.').pop() || '',
+        mimeType: mf.mediaFile.mimeType,
+        size: mf.mediaFile.size,
+        createdAt: new Date().toISOString(),
+        modifiedAt: new Date().toISOString(),
+        url: `/api/media/file/${mf.mediaFile.storagePath}`,
+      }));
+      setSelectedMedia(mediaFiles);
+    }
+  }, []);
 
   // Get selected platform types for AI
   const selectedPlatformTypes = useMemo((): PlatformType[] => {
@@ -190,22 +232,42 @@ export function PostEditor({ post, mode = 'create' }: PostEditorProps) {
     handleRefine();
   };
 
+  // Helper to register media files and get their database IDs
+  const registerSelectedMedia = async (): Promise<string[]> => {
+    if (selectedMedia.length === 0) {
+      return [];
+    }
+
+    // Determine source for each file based on URL pattern
+    const filesToRegister = selectedMedia.map(file => ({
+      path: file.path,
+      source: (file.url.includes('/uploads/') ? 'uploads' : 'media') as 'media' | 'uploads',
+    }));
+
+    const registeredFiles = await registerMedia.mutateAsync(filesToRegister);
+    return registeredFiles.map(f => f.id);
+  };
+
   const handleSubmit = async (asDraft = false) => {
     const finalContent = refinedContent ?? content;
     if (!finalContent.trim()) {
       return;
     }
 
-    const input: CreatePostInput = {
-      content: finalContent.trim(),
-      platformIds: selectedPlatformIds,
-    };
-
-    if (!asDraft && scheduledAt) {
-      input.scheduledAt = new Date(scheduledAt).toISOString();
-    }
-
     try {
+      // Register media files first to get database IDs
+      const mediaFileIds = await registerSelectedMedia();
+
+      const input: CreatePostInput = {
+        content: finalContent.trim(),
+        platformIds: selectedPlatformIds,
+        mediaFileIds: mediaFileIds.length > 0 ? mediaFileIds : undefined,
+      };
+
+      if (!asDraft && scheduledAt) {
+        input.scheduledAt = new Date(scheduledAt).toISOString();
+      }
+
       if (mode === 'edit' && post) {
         await updatePost.mutateAsync({ id: post.id, data: input });
       } else {
@@ -217,7 +279,49 @@ export function PostEditor({ post, mode = 'create' }: PostEditorProps) {
     }
   };
 
+  const handlePublishNow = async () => {
+    const finalContent = refinedContent ?? content;
+    if (!finalContent.trim()) {
+      toast({ title: 'Please enter content', variant: 'destructive' });
+      return;
+    }
+
+    if (selectedPlatformIds.length === 0) {
+      toast({ title: 'Please select at least one platform', variant: 'destructive' });
+      return;
+    }
+
+    try {
+      // Register media files first to get database IDs
+      const mediaFileIds = await registerSelectedMedia();
+
+      // First save/create the post
+      const input: CreatePostInput = {
+        content: finalContent.trim(),
+        platformIds: selectedPlatformIds,
+        mediaFileIds: mediaFileIds.length > 0 ? mediaFileIds : undefined,
+      };
+
+      let postId: string;
+      
+      if (mode === 'edit' && post) {
+        await updatePost.mutateAsync({ id: post.id, data: input });
+        postId = post.id;
+      } else {
+        const newPost = await createPost.mutateAsync(input);
+        postId = newPost.id;
+      }
+
+      // Then publish immediately
+      await publishPost.mutateAsync(postId);
+      navigate('/posts');
+    } catch (error) {
+      // Error is handled by the mutation
+    }
+  };
+
   const isSubmitting = createPost.isPending || updatePost.isPending;
+  const isPublishing = publishPost.isPending;
   const isRefining = refineContent.isPending;
   const displayContent = refinedContent ?? content;
 
@@ -537,23 +641,40 @@ export function PostEditor({ post, mode = 'create' }: PostEditorProps) {
             <Button
               variant="secondary"
               onClick={() => handleSubmit(true)}
-              disabled={isSubmitting || !displayContent.trim()}
+              disabled={isSubmitting || isPublishing || !displayContent.trim()}
             >
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Save as Draft
             </Button>
-            <Button
-              onClick={() => handleSubmit(false)}
-              disabled={
-                isSubmitting ||
-                !displayContent.trim() ||
-                hasExceededLimit ||
-                (!!scheduledAt && selectedPlatformIds.length === 0)
-              }
-            >
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {scheduledAt ? 'Schedule Post' : 'Save Post'}
-            </Button>
+            {scheduledAt ? (
+              <Button
+                onClick={() => handleSubmit(false)}
+                disabled={
+                  isSubmitting ||
+                  isPublishing ||
+                  !displayContent.trim() ||
+                  hasExceededLimit ||
+                  selectedPlatformIds.length === 0
+                }
+              >
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Schedule Post
+              </Button>
+            ) : (
+              <Button
+                onClick={handlePublishNow}
+                disabled={
+                  isSubmitting ||
+                  isPublishing ||
+                  !displayContent.trim() ||
+                  hasExceededLimit ||
+                  selectedPlatformIds.length === 0
+                }
+              >
+                {isPublishing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Post Now
+              </Button>
+            )}
           </div>
         </CardFooter>
       </Card>

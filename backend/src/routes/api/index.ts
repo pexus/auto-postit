@@ -9,6 +9,7 @@ import { quotaRouter } from './quota.js';
 import { settingsRouter } from './settings.js';
 import { importRouter } from '../import.js';
 import { aiRouter } from './ai.js';
+import { dashboardRouter } from './dashboard.js';
 
 export const apiRouter = Router();
 
@@ -16,6 +17,7 @@ export const apiRouter = Router();
 apiRouter.use(requireAuth);
 
 // Mount sub-routers
+apiRouter.use('/dashboard', dashboardRouter);
 apiRouter.use('/posts', postsRouter);
 apiRouter.use('/platforms', platformsRouter);
 apiRouter.use('/media', mediaRouter);

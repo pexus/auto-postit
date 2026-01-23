@@ -4,6 +4,7 @@ import { createReadStream } from 'fs';
 import { stat } from 'fs/promises';
 import { mediaService, SUPPORTED_EXTENSIONS } from '../../services/media.service.js';
 import { logger } from '../../lib/logger.js';
+import { prisma } from '../../lib/prisma.js';
 
 export const mediaRouter = Router();
 
@@ -331,4 +332,88 @@ mediaRouter.get('/supported-formats', (_req: Request, res: Response) => {
       mimeTypes: ['video/mp4', 'video/quicktime', 'video/webm'],
     },
   });
+});
+
+/**
+ * POST /api/media/register
+ * Register media files from filesystem into the database
+ * This creates MediaFile records that can be linked to posts
+ */
+mediaRouter.post('/register', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const userId = req.userId;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { files } = req.body as { files: Array<{ path: string; source: 'media' | 'uploads' }> };
+
+    if (!files || !Array.isArray(files) || files.length === 0) {
+      res.status(400).json({ error: 'Files array is required' });
+      return;
+    }
+
+    const registeredFiles: Array<{ id: string; filename: string; storagePath: string; mimeType: string }> = [];
+
+    for (const fileRef of files) {
+      const { path: filePath, source } = fileRef;
+
+      if (!filePath || !source || (source !== 'media' && source !== 'uploads')) {
+        continue;
+      }
+
+      // Get file info from filesystem
+      const fileInfo = await mediaService.getFileInfo(filePath, source);
+      if (!fileInfo) {
+        logger.warn({ filePath, source }, 'File not found for registration');
+        continue;
+      }
+
+      // Check if already registered
+      const existing = await prisma.mediaFile.findFirst({
+        where: {
+          userId,
+          storagePath: `${source}:${filePath}`,
+        },
+      });
+
+      if (existing) {
+        registeredFiles.push({
+          id: existing.id,
+          filename: existing.filename,
+          storagePath: existing.storagePath,
+          mimeType: existing.mimeType,
+        });
+        continue;
+      }
+
+      // Create new MediaFile record
+      const mediaFile = await prisma.mediaFile.create({
+        data: {
+          userId,
+          filename: fileInfo.name,
+          storagePath: `${source}:${filePath}`,
+          mimeType: fileInfo.mimeType,
+          size: fileInfo.size,
+          width: null, // Could extract with sharp/ffprobe later
+          height: null,
+          duration: null,
+        },
+      });
+
+      registeredFiles.push({
+        id: mediaFile.id,
+        filename: mediaFile.filename,
+        storagePath: mediaFile.storagePath,
+        mimeType: mediaFile.mimeType,
+      });
+
+      logger.info({ mediaFileId: mediaFile.id, filePath, source }, 'Media file registered');
+    }
+
+    res.status(201).json({ files: registeredFiles });
+  } catch (error) {
+    next(error);
+  }
 });

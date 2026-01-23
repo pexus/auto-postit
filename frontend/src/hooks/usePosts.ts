@@ -31,11 +31,11 @@ export interface PostPlatform {
 export interface PostMedia {
   id: string;
   order: number;
-  media: {
+  mediaFile: {
     id: string;
     filename: string;
     mimeType: string;
-    url: string;
+    storagePath: string;
   };
 }
 
@@ -49,6 +49,17 @@ export interface Post {
   updatedAt: string;
   platforms: PostPlatform[];
   mediaFiles: PostMedia[];
+}
+
+// Helper to get media URL from storagePath
+export function getMediaUrl(storagePath: string): string {
+  // storagePath format: "uploads:path/to/file.jpg" or "media:path/to/file.jpg"
+  const [source, ...pathParts] = storagePath.split(':');
+  const path = pathParts.join(':');
+  if (source === 'uploads') {
+    return `/api/media/uploads/${path}`;
+  }
+  return `/api/media/file/${path}`;
 }
 
 export interface PostsListResponse {
@@ -78,14 +89,14 @@ export interface CreatePostInput {
   content: string;
   scheduledAt?: string;
   platformIds?: string[];
-  mediaIds?: string[];
+  mediaFileIds?: string[];
 }
 
 export interface UpdatePostInput {
   content?: string;
   scheduledAt?: string | null;
   platformIds?: string[];
-  mediaIds?: string[];
+  mediaFileIds?: string[];
   status?: 'DRAFT' | 'SCHEDULED';
 }
 
@@ -260,6 +271,57 @@ export function useUnschedulePost() {
     onError: (error: Error) => {
       toast({
         title: 'Failed to unschedule post',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
+// Publish result type
+interface PublishResult {
+  platformId: string;
+  success: boolean;
+  postUrl?: string;
+  error?: string;
+}
+
+interface PublishResponse {
+  post: Post;
+  results: PublishResult[];
+  allSucceeded: boolean;
+}
+
+// Publish post immediately
+export function usePublishPost() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await api.post<PublishResponse>(`/api/posts/${id}/publish`);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+      queryClient.invalidateQueries({ queryKey: ['posts', data.post.id] });
+      
+      if (data.allSucceeded) {
+        toast({
+          title: 'Post published!',
+          description: 'Your post has been published to all platforms.',
+        });
+      } else {
+        const failed = data.results.filter(r => !r.success);
+        toast({
+          title: 'Partially published',
+          description: `Published with ${failed.length} error(s). Check the post for details.`,
+          variant: 'destructive',
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Failed to publish',
         description: error.message,
         variant: 'destructive',
       });

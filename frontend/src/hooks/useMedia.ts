@@ -138,6 +138,26 @@ export function useMediaDelete() {
   });
 }
 
+// Register files in database (for attaching to posts)
+export interface RegisteredMediaFile {
+  id: string;
+  filename: string;
+  storagePath: string;
+  mimeType: string;
+}
+
+export function useMediaRegister() {
+  return useMutation({
+    mutationFn: async (files: Array<{ path: string; source: MediaSource }>) => {
+      const response = await api.post<{ files: RegisteredMediaFile[] }>('/api/media/register', { files });
+      return response.data.files;
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Failed to register media', description: error.message, variant: 'destructive' });
+    },
+  });
+}
+
 // Get supported formats
 export function useMediaFormats() {
   return useQuery({

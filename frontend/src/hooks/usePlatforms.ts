@@ -153,10 +153,6 @@ export function useDeletePlatform() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['platforms'] });
-      toast({
-        title: 'Platform disconnected',
-        description: 'Platform has been removed.',
-      });
     },
     onError: (error: Error) => {
       toast({
@@ -164,6 +160,37 @@ export function useDeletePlatform() {
         description: error.message,
         variant: 'destructive',
       });
+    },
+  });
+}
+
+// Platform config response
+interface PlatformConfigResponse {
+  twitter: boolean;
+  linkedin: boolean;
+  facebook: boolean;
+  instagram: boolean;
+  youtube: boolean;
+  pinterest: boolean;
+}
+
+// Get platform configuration (which platforms are set up)
+export function usePlatformConfig() {
+  return useQuery<PlatformConfigResponse>({
+    queryKey: ['platforms', 'config'],
+    queryFn: async () => {
+      const response = await api.get<PlatformConfigResponse>('/api/platforms/config');
+      return response.data;
+    },
+  });
+}
+
+// Get Twitter auth URL
+export function useTwitterAuthUrl() {
+  return useMutation({
+    mutationFn: async () => {
+      const response = await api.get<{ authUrl: string }>('/api/platforms/twitter/auth-url');
+      return response.data;
     },
   });
 }

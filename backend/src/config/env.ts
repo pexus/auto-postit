@@ -27,10 +27,13 @@ const envSchema = z.object({
   // MFA
   MFA_ISSUER: z.string().default('Auto-PostIt'),
   
-  // OAuth - Twitter/X
+  // OAuth - Twitter/X (OAuth 2.0 for user auth)
   TWITTER_CLIENT_ID: optionalString,
   TWITTER_CLIENT_SECRET: optionalString,
   TWITTER_CALLBACK_URL: optionalUrl,
+  // Twitter media upload (requires X API Pro tier - $5000/month)
+  // Set to 'true' only if you have a paid X API subscription
+  TWITTER_MEDIA_UPLOAD_ENABLED: z.string().transform(val => val === 'true').default('false'),
   
   // OAuth - LinkedIn
   LINKEDIN_CLIENT_ID: optionalString,
