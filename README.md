@@ -13,6 +13,7 @@ Built for small business owners, content creators, and music labels who need a s
 - **Multi-Platform Support**: X (Twitter), LinkedIn (Profile + Company Pages), Facebook Pages, Instagram Business, YouTube, Pinterest
 - **Scheduling**: Drafts, scheduled posts, and immediate publishing
 - **Media Management**: Upload and manage images/videos
+- **Refine with AI**: Improve post copy using OpenAI API (optional)
 - **Import**: CSV/XLSX import for bulk scheduling
 - **Quota Tracking**: Usage dashboard to stay within platform limits
 - **Security**: Encrypted token storage, optional TOTP-based MFA
