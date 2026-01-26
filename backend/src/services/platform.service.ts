@@ -1,5 +1,5 @@
 import { prisma } from '../lib/prisma.js';
-import { PlatformType } from '@prisma/client';
+import { PlatformType, Prisma } from '@prisma/client';
 import { logger } from '../lib/logger.js';
 
 export interface PlatformWithoutTokens {
@@ -8,6 +8,7 @@ export interface PlatformWithoutTokens {
   name: string;
   platformUserId: string;
   platformUsername: string | null;
+  metadata: Prisma.JsonValue;
   isActive: boolean;
   lastSyncAt: Date | null;
   createdAt: Date;
@@ -27,6 +28,7 @@ class PlatformService {
         name: true,
         platformUserId: true,
         platformUsername: true,
+        metadata: true,
         isActive: true,
         lastSyncAt: true,
         createdAt: true,
@@ -50,6 +52,7 @@ class PlatformService {
         name: true,
         platformUserId: true,
         platformUsername: true,
+        metadata: true,
         isActive: true,
         lastSyncAt: true,
         createdAt: true,
@@ -95,6 +98,7 @@ class PlatformService {
         name: true,
         platformUserId: true,
         platformUsername: true,
+        metadata: true,
         isActive: true,
         lastSyncAt: true,
         createdAt: true,

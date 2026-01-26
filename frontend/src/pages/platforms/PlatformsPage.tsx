@@ -5,13 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, CheckCircle, XCircle, ExternalLink, Trash2 } from 'lucide-react';
-import { usePlatforms, useDeletePlatform, usePlatformConfig, PLATFORM_CONFIG, PlatformType } from '@/hooks/usePlatforms';
+import { usePlatforms, useDeletePlatform, usePlatformConfig, PLATFORM_CONFIG, PlatformType, Platform } from '@/hooks/usePlatforms';
 import { api } from '@/lib/api';
 import { toast } from '@/hooks/use-toast';
 
-const platformList: { type: PlatformType; name: string; description: string }[] = [
+const platformList: { type: PlatformType; name: string; description: string; subType?: 'profile' | 'page' }[] = [
   { type: 'TWITTER', name: 'X (Twitter)', description: 'Connect your X account to post tweets' },
-  { type: 'LINKEDIN', name: 'LinkedIn', description: 'Connect your LinkedIn profile' },
+  { type: 'LINKEDIN', name: 'LinkedIn Profile', description: 'Post to your personal LinkedIn profile', subType: 'profile' },
+  { type: 'LINKEDIN', name: 'LinkedIn Page', description: 'Post to a LinkedIn Company Page you admin', subType: 'page' },
   { type: 'FACEBOOK', name: 'Facebook', description: 'Connect your Facebook Page' },
   { type: 'INSTAGRAM', name: 'Instagram', description: 'Connect your Instagram Business account' },
   { type: 'YOUTUBE', name: 'YouTube', description: 'Connect your YouTube channel' },
@@ -52,11 +53,12 @@ export function PlatformsPage() {
     }
   }, [searchParams, setSearchParams, refetch]);
 
-  const handleConnect = async (type: PlatformType) => {
+  const handleConnect = async (type: PlatformType, subType?: 'profile' | 'page') => {
     try {
       setConnectingPlatform(type);
       const platformKey = type.toLowerCase();
-      const response = await api.get<{ authUrl: string }>(`/api/platforms/${platformKey}/auth-url`);
+      const modeParam = type === 'LINKEDIN' && subType ? `?mode=${subType}` : '';
+      const response = await api.get<{ authUrl: string }>(`/api/platforms/${platformKey}/auth-url${modeParam}`);
       // Redirect to OAuth provider
       window.location.href = response.data.authUrl;
     } catch (error) {
@@ -86,8 +88,34 @@ export function PlatformsPage() {
     }
   };
 
-  const getConnectedPlatform = (type: PlatformType) => {
-    return platforms.find(p => p.type === type && p.isActive);
+  const getConnectedPlatforms = (type: PlatformType, subType?: 'profile' | 'page') => {
+    return platforms.filter(p => {
+      if (p.type !== type || !p.isActive) return false;
+      
+      // For LinkedIn, filter by subType
+      if (type === 'LINKEDIN' && subType) {
+        const metadata = p.metadata && typeof p.metadata === 'object'
+          ? (p.metadata as Record<string, unknown>)
+          : null;
+        const metaType = metadata?.type;
+        if (subType === 'profile') return metaType === 'profile';
+        if (subType === 'page') return metaType === 'organization';
+        return false;
+      }
+      
+      return true;
+    });
+  };
+
+  const getLinkedInConnectionLabel = (platform: Platform): string | null => {
+    if (platform.type !== 'LINKEDIN') return null;
+    const metadata = platform.metadata && typeof platform.metadata === 'object'
+      ? (platform.metadata as Record<string, unknown>)
+      : null;
+    const typeValue = metadata?.type;
+    if (typeValue === 'organization') return 'Page';
+    if (typeValue === 'profile') return 'Profile';
+    return null;
   };
 
   const isPlatformConfigured = (type: PlatformType): boolean => {
@@ -110,12 +138,16 @@ export function PlatformsPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {platformList.map((platformInfo) => {
-            const connected = getConnectedPlatform(platformInfo.type);
+            const connectedPlatforms = getConnectedPlatforms(platformInfo.type, platformInfo.subType);
+            const connected = connectedPlatforms.length > 0;
             const isConfigured = isPlatformConfigured(platformInfo.type);
             const platformConfig = PLATFORM_CONFIG[platformInfo.type];
+            const connectedCount = connectedPlatforms.length;
+            // Use subType for key since LinkedIn appears twice
+            const cardKey = platformInfo.subType ? `${platformInfo.type}-${platformInfo.subType}` : platformInfo.type;
 
             return (
-              <Card key={platformInfo.type} className={connected ? 'border-green-500/50' : ''}>
+              <Card key={cardKey} className={connected ? 'border-green-500/50' : ''}>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg flex items-center gap-2">
@@ -127,7 +159,7 @@ export function PlatformsPage() {
                     {connected ? (
                       <Badge variant="default" className="bg-green-500">
                         <CheckCircle className="h-3 w-3 mr-1" />
-                        Connected
+                        {connectedCount > 1 ? `Connected (${connectedCount})` : 'Connected'}
                       </Badge>
                     ) : (
                       <Badge variant="secondary">
@@ -140,26 +172,34 @@ export function PlatformsPage() {
                 </CardHeader>
                 <CardContent>
                   {connected ? (
-                    <div className="space-y-3">
-                      <div className="text-sm">
-                        <span className="text-muted-foreground">Account: </span>
-                        <span className="font-medium">{connected.platformUsername || connected.name}</span>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDisconnect(connected.id, platformInfo.name)}
-                          disabled={deletePlatform.isPending}
-                        >
-                          <Trash2 className="h-4 w-4 mr-1" />
-                          Disconnect
-                        </Button>
-                      </div>
+                    <div className="space-y-4">
+                      {connectedPlatforms.map((connectedPlatform) => {
+                        const label = getLinkedInConnectionLabel(connectedPlatform);
+                        const displayName = connectedPlatform.platformUsername || connectedPlatform.name;
+                        return (
+                          <div key={connectedPlatform.id} className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium truncate">{displayName}</div>
+                              {label && (
+                                <div className="text-xs text-muted-foreground">{label}</div>
+                              )}
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDisconnect(connectedPlatform.id, displayName)}
+                              disabled={deletePlatform.isPending}
+                            >
+                              <Trash2 className="h-4 w-4 mr-1" />
+                              Disconnect
+                            </Button>
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : isConfigured ? (
                     <Button
-                      onClick={() => handleConnect(platformInfo.type)}
+                      onClick={() => handleConnect(platformInfo.type, platformInfo.subType)}
                       disabled={connectingPlatform === platformInfo.type}
                       className="w-full"
                     >

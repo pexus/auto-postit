@@ -333,34 +333,168 @@ class YouTubeService {
   }
 
   /**
-   * Upload video to YouTube
-   * Note: This is a simplified implementation. Full video upload requires 
-   * resumable uploads for larger files.
+   * Upload video to YouTube using resumable upload API
+   * Free tier quota: 10,000 units/day
+   * Video upload costs ~1,600 units = ~6 videos/day on free tier
    */
   async uploadVideo(
     platformId: string,
-    _content: string,
+    content: string,
     videoUrl: string,
-    _options?: {
+    options?: {
       title?: string;
       tags?: string[];
       categoryId?: string;
       privacyStatus?: 'public' | 'private' | 'unlisted';
     }
   ): Promise<{ postId: string; postUrl: string }> {
-    // Note: Full video upload implementation would require:
-    // 1. Downloading the video from the URL
-    // 2. Using YouTube's resumable upload API
-    // 3. Handling large file uploads in chunks
+    const accessToken = await this.getValidAccessToken(platformId);
     
-    logger.warn({ platformId, videoUrl }, 'YouTube video upload requires resumable upload implementation');
+    const title = options?.title || content.substring(0, 100) || 'Video Upload';
+    const description = content || '';
+    const tags = options?.tags || [];
+    const categoryId = options?.categoryId || '22'; // 22 = People & Blogs
+    const privacyStatus = options?.privacyStatus || 'public';
+
+    logger.info({ platformId, videoUrl, title }, 'Starting YouTube video upload');
+
+    // Step 1: Download video from URL
+    const videoResponse = await fetch(videoUrl);
+    if (!videoResponse.ok) {
+      throw new AppError('Failed to download video from URL', 400, true, 'VIDEO_DOWNLOAD_FAILED');
+    }
+
+    const videoBuffer = await videoResponse.arrayBuffer();
+    const videoSize = videoBuffer.byteLength;
     
-    throw new AppError(
-      'YouTube video upload is not fully implemented. Videos need to be uploaded manually.',
-      501,
-      true,
-      'NOT_IMPLEMENTED'
+    if (videoSize > 128 * 1024 * 1024 * 1024) { // 128GB YouTube limit
+      throw new AppError('Video file exceeds YouTube maximum size (128GB)', 400, true, 'VIDEO_TOO_LARGE');
+    }
+
+    // Determine content type
+    const contentType = videoResponse.headers.get('content-type') || 'video/mp4';
+
+    // Step 2: Initialize resumable upload session
+    const metadata = {
+      snippet: {
+        title: title.substring(0, 100), // YouTube title limit
+        description: description.substring(0, 5000), // YouTube description limit
+        tags: tags.slice(0, 500), // YouTube tags limit
+        categoryId,
+      },
+      status: {
+        privacyStatus,
+        selfDeclaredMadeForKids: false,
+      },
+    };
+
+    const initResponse = await fetch(
+      'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status',
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json; charset=UTF-8',
+          'X-Upload-Content-Length': videoSize.toString(),
+          'X-Upload-Content-Type': contentType,
+        },
+        body: JSON.stringify(metadata),
+      }
     );
+
+    if (!initResponse.ok) {
+      const error = await initResponse.text();
+      logger.error({ error, platformId, status: initResponse.status }, 'Failed to initialize YouTube upload');
+      throw new AppError(`Failed to initialize YouTube upload: ${error}`, 400, true, 'UPLOAD_INIT_FAILED');
+    }
+
+    const uploadUrl = initResponse.headers.get('location');
+    if (!uploadUrl) {
+      throw new AppError('No upload URL returned from YouTube', 500, true, 'NO_UPLOAD_URL');
+    }
+
+    // Step 3: Upload video using resumable upload
+    // For files under 5MB, we can do a single request
+    // For larger files, we chunk the upload
+    const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB chunks
+    
+    let uploadedBytes = 0;
+    let uploadResponse: Response | null = null;
+
+    if (videoSize <= CHUNK_SIZE) {
+      // Single request upload for small files
+      uploadResponse = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': contentType,
+          'Content-Length': videoSize.toString(),
+        },
+        body: videoBuffer,
+      });
+    } else {
+      // Chunked upload for larger files
+      const videoBytes = new Uint8Array(videoBuffer);
+      
+      while (uploadedBytes < videoSize) {
+        const chunkStart = uploadedBytes;
+        const chunkEnd = Math.min(uploadedBytes + CHUNK_SIZE, videoSize);
+        const chunk = videoBytes.slice(chunkStart, chunkEnd);
+        
+        const chunkResponse = await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': contentType,
+            'Content-Length': chunk.length.toString(),
+            'Content-Range': `bytes ${chunkStart}-${chunkEnd - 1}/${videoSize}`,
+          },
+          body: chunk,
+        });
+
+        if (chunkResponse.status === 308) {
+          // Chunk uploaded, continue with next chunk
+          const range = chunkResponse.headers.get('range');
+          if (range) {
+            const match = range.match(/bytes=0-(\d+)/);
+            if (match && match[1]) {
+              uploadedBytes = parseInt(match[1], 10) + 1;
+            } else {
+              uploadedBytes = chunkEnd;
+            }
+          } else {
+            uploadedBytes = chunkEnd;
+          }
+          logger.debug({ platformId, uploadedBytes, videoSize }, 'YouTube upload progress');
+        } else if (chunkResponse.ok) {
+          // Upload complete
+          uploadResponse = chunkResponse;
+          break;
+        } else {
+          const error = await chunkResponse.text();
+          logger.error({ error, platformId, status: chunkResponse.status }, 'YouTube chunk upload failed');
+          throw new AppError(`YouTube upload failed: ${error}`, 400, true, 'UPLOAD_FAILED');
+        }
+      }
+    }
+
+    if (!uploadResponse || !uploadResponse.ok) {
+      throw new AppError('YouTube video upload failed', 500, true, 'UPLOAD_FAILED');
+    }
+
+    interface YouTubeUploadResponse {
+      id: string;
+      snippet: {
+        title: string;
+        channelId: string;
+      };
+    }
+
+    const uploadResult = await uploadResponse.json() as YouTubeUploadResponse;
+    const videoId = uploadResult.id;
+    const postUrl = `https://www.youtube.com/watch?v=${videoId}`;
+
+    logger.info({ platformId, videoId, title }, 'YouTube video uploaded successfully');
+
+    return { postId: videoId, postUrl };
   }
 
   /**

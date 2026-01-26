@@ -80,6 +80,7 @@ This guide explains how to configure each social media platform for Auto-PostIt.
    - Request access to:
      - **Sign In with LinkedIn using OpenID Connect**
      - **Share on LinkedIn**
+   - **Marketing Developer Platform** (required for posting to Company Pages)
 
 3. **Configure OAuth 2.0**
    - Go to Auth tab
@@ -98,7 +99,8 @@ This guide explains how to configure each social media platform for Auto-PostIt.
 ### Notes
 - LinkedIn API has rate limits of ~100 calls/day for posting
 - Posts are published to your personal profile by default
-- For company pages, additional setup is required
+- For Company Pages, the app must be approved for **Marketing Developer Platform**
+- The user must be an Admin of the LinkedIn Page to post
 
 ---
 
@@ -142,8 +144,8 @@ This guide explains how to configure each social media platform for Auto-PostIt.
 
 6. **Configure Environment Variables**
    ```env
-   FACEBOOK_CLIENT_ID=your_app_id
-   FACEBOOK_CLIENT_SECRET=your_app_secret
+   FACEBOOK_APP_ID=your_app_id
+   FACEBOOK_APP_SECRET=your_app_secret
    FACEBOOK_CALLBACK_URL=https://your-domain.com/public/oauth/facebook/callback
    ```
 
@@ -180,9 +182,10 @@ This guide explains how to configure each social media platform for Auto-PostIt.
 4. **Configure Environment Variables**
    - Uses same credentials as Facebook:
    ```env
-   FACEBOOK_CLIENT_ID=your_app_id
-   FACEBOOK_CLIENT_SECRET=your_app_secret
+   FACEBOOK_APP_ID=your_app_id
+   FACEBOOK_APP_SECRET=your_app_secret
    FACEBOOK_CALLBACK_URL=https://your-domain.com/public/oauth/facebook/callback
+   INSTAGRAM_CALLBACK_URL=https://your-domain.com/public/oauth/instagram/callback
    ```
 
 ### Notes
@@ -226,8 +229,8 @@ This guide explains how to configure each social media platform for Auto-PostIt.
 
 6. **Configure Environment Variables**
    ```env
-   PINTEREST_CLIENT_ID=your_app_id
-   PINTEREST_CLIENT_SECRET=your_app_secret
+   PINTEREST_APP_ID=your_app_id
+   PINTEREST_APP_SECRET=your_app_secret
    PINTEREST_CALLBACK_URL=https://your-domain.com/public/oauth/pinterest/callback
    ```
 
@@ -287,10 +290,10 @@ This guide explains how to configure each social media platform for Auto-PostIt.
    GOOGLE_CALLBACK_URL=https://your-domain.com/public/oauth/youtube/callback
    ```
 
-### Limitations
-- **Video Upload**: Full video upload requires the resumable upload API, which is complex. Currently, Auto-PostIt does not support direct video uploads to YouTube.
+### Notes
+- **Video Upload**: Supported via the resumable upload API. Provide a direct video file URL.
 - **Community Posts**: YouTube's Community Post API is not publicly available. Posts must be made through YouTube Studio.
-- Use Auto-PostIt for YouTube primarily for scheduling reminders, not direct posting.
+- Free tier quota: ~10,000 units/day (about 6 uploads/day at ~1,600 units per upload)
 
 ---
 
@@ -315,16 +318,17 @@ LINKEDIN_CALLBACK_URL=https://your-domain.com/public/oauth/linkedin/callback
 # =============================================================================
 # FACEBOOK & INSTAGRAM
 # =============================================================================
-FACEBOOK_CLIENT_ID=
-FACEBOOK_CLIENT_SECRET=
+FACEBOOK_APP_ID=
+FACEBOOK_APP_SECRET=
 FACEBOOK_CALLBACK_URL=https://your-domain.com/public/oauth/facebook/callback
 # Note: Instagram uses the same Facebook app credentials
+INSTAGRAM_CALLBACK_URL=https://your-domain.com/public/oauth/instagram/callback
 
 # =============================================================================
 # PINTEREST
 # =============================================================================
-PINTEREST_CLIENT_ID=
-PINTEREST_CLIENT_SECRET=
+PINTEREST_APP_ID=
+PINTEREST_APP_SECRET=
 PINTEREST_CALLBACK_URL=https://your-domain.com/public/oauth/pinterest/callback
 
 # =============================================================================
@@ -365,10 +369,12 @@ GOOGLE_CALLBACK_URL=https://your-domain.com/public/oauth/youtube/callback
 
 For **development** (localhost):
 ```env
-TWITTER_CALLBACK_URL=http://localhost:3001/public/oauth/twitter/callback
-LINKEDIN_CALLBACK_URL=http://localhost:3001/public/oauth/linkedin/callback
+TWITTER_CALLBACK_URL=http://localhost:8080/public/oauth/twitter/callback
+LINKEDIN_CALLBACK_URL=http://localhost:8080/public/oauth/linkedin/callback
 # etc.
 ```
+
+When using Docker in this repo, the default web port is **8080**. Set callback URLs to `http://localhost:8080/public/oauth/...` and ensure your platform apps allow localhost redirect URIs.
 
 Most platforms require HTTPS for callback URLs in production. For local development:
 - Twitter: Allows `http://localhost`

@@ -11,6 +11,7 @@ export interface Platform {
   name: string;
   platformUserId: string;
   platformUsername: string | null;
+  metadata?: Record<string, unknown> | null;
   isActive: boolean;
   lastSyncAt: string | null;
   createdAt: string;

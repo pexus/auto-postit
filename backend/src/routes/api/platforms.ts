@@ -95,7 +95,9 @@ platformsRouter.get('/linkedin/auth-url', async (req: Request, res: Response, ne
       return;
     }
 
-    const authUrl = linkedInService.getAuthorizationUrl(userId);
+    const mode = typeof req.query.mode === 'string' ? req.query.mode : undefined;
+    const includeOrganizations = mode === 'page' ? true : mode === 'profile' ? false : true;
+    const authUrl = linkedInService.getAuthorizationUrl(userId, { includeOrganizations });
     res.json({ authUrl });
   } catch (error) {
     next(error);

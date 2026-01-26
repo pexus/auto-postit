@@ -5,18 +5,27 @@ import { encrypt, decrypt } from '../lib/encryption.js';
 import { logger } from '../lib/logger.js';
 import { AppError } from '../middleware/errorHandler.js';
 
+import type { Prisma } from '@prisma/client';
+
 // LinkedIn OAuth 2.0 endpoints
 const LINKEDIN_AUTH_URL = 'https://www.linkedin.com/oauth/v2/authorization';
 const LINKEDIN_TOKEN_URL = 'https://www.linkedin.com/oauth/v2/accessToken';
 const LINKEDIN_USERINFO_URL = 'https://api.linkedin.com/v2/userinfo';
 const LINKEDIN_POST_URL = 'https://api.linkedin.com/v2/posts';
+const LINKEDIN_ORGANIZATIONS_URL = 'https://api.linkedin.com/v2/organizationAcls';
 
 // LinkedIn OAuth scopes
-const LINKEDIN_SCOPES = [
+const LINKEDIN_PROFILE_SCOPES = [
   'openid',
   'profile',
   'email',
-  'w_member_social', // Post on behalf of user
+  'w_member_social', // Post on behalf of user (personal profile)
+];
+
+const LINKEDIN_PAGE_SCOPES = [
+  ...LINKEDIN_PROFILE_SCOPES,
+  'w_organization_social', // Post on behalf of organization (pages)
+  'r_organization_social', // Read organization info
 ];
 
 interface LinkedInTokens {
@@ -34,8 +43,23 @@ interface LinkedInUser {
   picture?: string;
 }
 
+interface LinkedInOrganization {
+  organizationalTarget: string; // URN: urn:li:organization:xxx
+  role: string;
+  state: string;
+}
+
+interface LinkedInOrgDetails {
+  id: number;
+  localizedName: string;
+  vanityName?: string;
+  logoV2?: {
+    original?: string;
+  };
+}
+
 // Store state temporarily for OAuth flow
-const stateStore = new Map<string, { userId: string; expiresAt: number }>();
+const stateStore = new Map<string, { userId: string; expiresAt: number; includeOrganizations: boolean }>();
 
 class LinkedInService {
   /**
@@ -48,16 +72,18 @@ class LinkedInService {
   /**
    * Generate OAuth authorization URL
    */
-  getAuthorizationUrl(userId: string): string {
+  getAuthorizationUrl(userId: string, options?: { includeOrganizations?: boolean }): string {
     if (!this.isConfigured()) {
       throw new AppError('LinkedIn OAuth is not configured', 503, true, 'LINKEDIN_NOT_CONFIGURED');
     }
 
     const state = crypto.randomBytes(16).toString('hex');
+    const includeOrganizations = options?.includeOrganizations ?? true;
     
     // Store state for verification
     stateStore.set(state, {
       userId,
+      includeOrganizations,
       expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes
     });
 
@@ -69,7 +95,7 @@ class LinkedInService {
       client_id: env.LINKEDIN_CLIENT_ID!,
       redirect_uri: env.LINKEDIN_CALLBACK_URL!,
       state,
-      scope: LINKEDIN_SCOPES.join(' '),
+      scope: (includeOrganizations ? LINKEDIN_PAGE_SCOPES : LINKEDIN_PROFILE_SCOPES).join(' '),
     });
 
     return `${LINKEDIN_AUTH_URL}?${params.toString()}`;
@@ -98,6 +124,7 @@ class LinkedInService {
     }
 
     const userId = stateData.userId;
+    const includeOrganizations = stateData.includeOrganizations;
     stateStore.delete(state);
 
     // Exchange code for tokens
@@ -141,45 +168,141 @@ class LinkedInService {
     // Calculate token expiry
     const tokenExpiresAt = new Date(Date.now() + tokens.expires_in * 1000);
 
-    // Check if platform already exists
+    // Save personal profile
+    await this.saveOrUpdatePlatform(
+      userId,
+      linkedInUser.sub,
+      `${linkedInUser.name} (Profile)`,
+      linkedInUser.email ?? null,
+      tokens,
+      tokenExpiresAt,
+      { type: 'profile' }
+    );
+
+    // Fetch and save organization pages the user administers
+    if (includeOrganizations) {
+      await this.fetchAndSaveOrganizations(userId, tokens.access_token, tokens, tokenExpiresAt);
+    }
+  }
+
+  /**
+   * Fetch organizations/pages the user can post to
+   */
+  private async fetchAndSaveOrganizations(
+    userId: string,
+    accessToken: string,
+    tokens: LinkedInTokens,
+    tokenExpiresAt: Date
+  ): Promise<void> {
+    try {
+      // Get organizations where user has ADMINISTRATOR role
+      const orgsResponse = await fetch(
+        `${LINKEDIN_ORGANIZATIONS_URL}?q=roleAssignee&role=ADMINISTRATOR&projection=(elements*(organizationalTarget))`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'LinkedIn-Version': '202401',
+          },
+        }
+      );
+
+      if (!orgsResponse.ok) {
+        logger.warn('Could not fetch LinkedIn organizations - user may not have page admin permissions');
+        return;
+      }
+
+      const orgsData = await orgsResponse.json() as { elements?: LinkedInOrganization[] };
+      const organizations = orgsData.elements || [];
+
+      for (const org of organizations) {
+        const orgUrn = org.organizationalTarget;
+        // Extract org ID from URN (urn:li:organization:123456)
+        const orgIdMatch = orgUrn.match(/urn:li:organization:(\d+)/);
+        if (!orgIdMatch) continue;
+
+        const orgId = orgIdMatch[1];
+
+        // Get organization details
+        const orgDetailsResponse = await fetch(
+          `https://api.linkedin.com/v2/organizations/${orgId}?projection=(id,localizedName,vanityName,logoV2)`,
+          {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'LinkedIn-Version': '202401',
+            },
+          }
+        );
+
+        if (!orgDetailsResponse.ok) continue;
+
+        const orgDetails = await orgDetailsResponse.json() as LinkedInOrgDetails;
+
+        // Save organization as a separate platform
+        await this.saveOrUpdatePlatform(
+          userId,
+          orgUrn,
+          `${orgDetails.localizedName} (Page)`,
+          orgDetails.vanityName ?? null,
+          tokens,
+          tokenExpiresAt,
+          { type: 'organization', orgId: orgDetails.id }
+        );
+
+        logger.info({ userId, orgName: orgDetails.localizedName }, 'LinkedIn organization page connected');
+      }
+    } catch (error) {
+      logger.error({ error }, 'Error fetching LinkedIn organizations');
+      // Don't throw - personal profile is still connected
+    }
+  }
+
+  /**
+   * Save or update a LinkedIn platform connection
+   */
+  private async saveOrUpdatePlatform(
+    userId: string,
+    platformUserId: string,
+    name: string,
+    username: string | null,
+    tokens: LinkedInTokens,
+    tokenExpiresAt: Date,
+    metadata: Prisma.InputJsonValue
+  ): Promise<void> {
     const existingPlatform = await prisma.platform.findFirst({
       where: {
         userId,
         type: 'LINKEDIN',
-        platformUserId: linkedInUser.sub,
+        platformUserId,
       },
     });
 
+    const platformData = {
+      accessToken: encrypt(tokens.access_token),
+      refreshToken: tokens.refresh_token ? encrypt(tokens.refresh_token) : null,
+      tokenExpiresAt,
+      isActive: true,
+      lastSyncAt: new Date(),
+      metadata,
+    };
+
     if (existingPlatform) {
-      // Update existing platform
       await prisma.platform.update({
         where: { id: existingPlatform.id },
-        data: {
-          accessToken: encrypt(tokens.access_token),
-          refreshToken: tokens.refresh_token ? encrypt(tokens.refresh_token) : null,
-          tokenExpiresAt,
-          isActive: true,
-          lastSyncAt: new Date(),
-        },
+        data: platformData,
       });
       logger.info({ userId, platformId: existingPlatform.id }, 'LinkedIn platform reconnected');
     } else {
-      // Create new platform
       await prisma.platform.create({
         data: {
           userId,
           type: 'LINKEDIN',
-          name: linkedInUser.name,
-          platformUserId: linkedInUser.sub,
-          platformUsername: linkedInUser.email ?? null,
-          accessToken: encrypt(tokens.access_token),
-          refreshToken: tokens.refresh_token ? encrypt(tokens.refresh_token) : null,
-          tokenExpiresAt,
-          isActive: true,
-          lastSyncAt: new Date(),
+          name,
+          platformUserId,
+          platformUsername: username,
+          ...platformData,
         },
       });
-      logger.info({ userId, linkedInName: linkedInUser.name }, 'LinkedIn platform connected');
+      logger.info({ userId, name }, 'LinkedIn platform connected');
     }
   }
 
@@ -262,7 +385,7 @@ class LinkedInService {
   }
 
   /**
-   * Post to LinkedIn
+   * Post to LinkedIn (profile or organization page)
    */
   async createPost(
     platformId: string, 
@@ -279,9 +402,22 @@ class LinkedInService {
       throw new AppError('Platform not found', 404, true, 'PLATFORM_NOT_FOUND');
     }
 
+    // Determine if this is an organization or personal profile post
+    // The platformUserId will be either:
+    // - Personal: contains "person" (e.g., "abc123" or "urn:li:person:abc123")
+    // - Organization: "urn:li:organization:123456"
+    const isOrganization = platform.platformUserId.includes('organization');
+    
+    // Build the author URN
+    let authorUrn = platform.platformUserId;
+    if (!authorUrn.startsWith('urn:li:')) {
+      // It's just the ID, need to construct the URN
+      authorUrn = `urn:li:person:${authorUrn}`;
+    }
+
     // Build post data
-    const postData: any = {
-      author: platform.platformUserId, // URN format: urn:li:person:xxx
+    const postData: Record<string, unknown> = {
+      author: authorUrn,
       lifecycleState: 'PUBLISHED',
       visibility: 'PUBLIC',
       commentary: content,
@@ -291,10 +427,6 @@ class LinkedInService {
         thirdPartyDistributionChannels: [],
       },
     };
-
-    // Add media if provided (requires separate upload flow)
-    // For now, we'll handle text-only posts
-    // Media support would require uploading to LinkedIn first
 
     const response = await fetch(LINKEDIN_POST_URL, {
       method: 'POST',
@@ -309,18 +441,17 @@ class LinkedInService {
 
     if (!response.ok) {
       const error = await response.text();
-      logger.error({ error, platformId, status: response.status }, 'Failed to create LinkedIn post');
+      logger.error({ error, platformId, status: response.status, isOrganization }, 'Failed to create LinkedIn post');
       throw new AppError(`Failed to create LinkedIn post: ${error}`, 400, true, 'POST_FAILED');
     }
 
     // LinkedIn returns the post ID in the x-restli-id header
     const postId = response.headers.get('x-restli-id') || 'unknown';
     
-    // Extract the activity URN for the post URL
-    // Format: urn:li:share:xxx or urn:li:ugcPost:xxx
+    // Construct post URL
     const postUrl = `https://www.linkedin.com/feed/update/${postId}`;
 
-    logger.info({ platformId, postId }, 'LinkedIn post created successfully');
+    logger.info({ platformId, postId, isOrganization }, 'LinkedIn post created successfully');
     
     return { postId, postUrl };
   }
