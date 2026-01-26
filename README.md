@@ -1,6 +1,6 @@
 # Auto-PostIt
 
-> 🚧 **WORK IN PROGRESS** - This project is currently under active development and is not yet ready for production use.
+> Active development, but fully usable for single-user self-hosted deployments.
 
 A minimalist, self-hosted social media scheduling and auto-posting application designed for single-user operation. A simpler alternative to Postiz, focusing on ease of use, reliability, and staying within free API tier limits.
 
@@ -8,14 +8,15 @@ A minimalist, self-hosted social media scheduling and auto-posting application d
 
 Built for small business owners, content creators, and music labels who need a simple, self-hosted solution to schedule and publish content across multiple social media platforms without the complexity of enterprise SaaS tools.
 
-## ✨ Planned Features
+## ✨ Features
 
-- **Multi-Platform Support**: X (Twitter), LinkedIn, Facebook Pages, Instagram, YouTube, Pinterest
-- **Scheduling**: Calendar-based scheduling with timezone support
-- **Media Management**: Upload and manage images and videos
-- **Quota Tracking**: Real-time API usage monitoring to stay within free tiers
-- **Security-First**: TOTP-based MFA, encrypted token storage, rate limiting
-- **Self-Hosted**: Docker-based deployment with Apache2 reverse proxy
+- **Multi-Platform Support**: X (Twitter), LinkedIn (Profile + Company Pages), Facebook Pages, Instagram Business, YouTube, Pinterest
+- **Scheduling**: Drafts, scheduled posts, and immediate publishing
+- **Media Management**: Upload and manage images/videos
+- **Import**: CSV/XLSX import for bulk scheduling
+- **Quota Tracking**: Usage dashboard to stay within platform limits
+- **Security**: Encrypted token storage, optional TOTP-based MFA
+- **Self-Hosted**: Docker-based deployment (default port 8080)
 
 ## 📋 Documentation
 
@@ -24,6 +25,7 @@ Built for small business owners, content creators, and music labels who need a s
 | [PRD.md](docs/PRD.md) | Product Requirements Document |
 | [SECURITY.md](docs/SECURITY.md) | Security architecture and guidelines |
 | [PLATFORM_LIMITS.md](docs/PLATFORM_LIMITS.md) | API quotas and rate limits per platform |
+| [PLATFORM_CONFIGURATION.md](docs/PLATFORM_CONFIGURATION.md) | OAuth setup for each platform |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture and deployment |
 | [DEVELOPMENT.md](docs/DEVELOPMENT.md) | Development standards and workflow |
 
@@ -44,13 +46,13 @@ Built for small business owners, content creators, and music labels who need a s
 - [x] Requirements & Research
 - [x] Documentation
 - [x] Project Scaffolding
-- [ ] Authentication & MFA
-- [ ] Core Post Management
-- [ ] Platform Integrations
-- [ ] Scheduling System
-- [ ] Quota Management
-- [ ] UI/UX
-- [ ] Docker Deployment
+- [x] Authentication & MFA
+- [x] Core Post Management
+- [x] Platform Integrations
+- [x] Scheduling System
+- [x] Quota Management
+- [ ] UI/UX (ongoing polish)
+- [x] Docker Deployment
 - [ ] Testing
 
 ## 🚀 Getting Started
@@ -61,7 +63,7 @@ Built for small business owners, content creators, and music labels who need a s
 - Docker & Docker Compose
 - Git
 
-### Local Development Setup
+### Docker (Recommended)
 
 1. **Clone the repository**
    ```bash
@@ -69,35 +71,21 @@ Built for small business owners, content creators, and music labels who need a s
    cd auto-postit
    ```
 
-2. **Install dependencies**
+2. **Configure environment**
    ```bash
-   npm run install:all
+   cp env.prod.example .env.prod
+   # Edit .env.prod with your settings
    ```
 
-3. **Start database services**
+3. **Build and start**
    ```bash
-   npm run docker:dev
+   scripts/docker-build.sh
+   scripts/docker-up.sh
    ```
 
-4. **Configure environment**
-   ```bash
-   cp backend/.env.example backend/.env
-   # Edit backend/.env with your settings
-   ```
-
-5. **Run database migrations**
-   ```bash
-   npm run db:generate
-   npm run db:migrate
-   ```
-
-6. **Start development servers**
-   ```bash
-   npm run dev
-   ```
-
-   - Frontend: http://localhost:5173
-   - Backend API: http://localhost:3001
+4. **Open the app**
+   - Web UI: http://localhost:8080
+   - API: http://localhost:8080/api
 
 ### Project Structure
 
@@ -131,4 +119,4 @@ This project is currently in early development. Contribution guidelines will be 
 
 ---
 
-*Last Updated: January 12, 2026*
+*Last Updated: January 26, 2026*

@@ -5,7 +5,7 @@ import { twitterService } from './twitter.service.js';
 import { linkedInService } from './linkedin.service.js';
 import { facebookService } from './facebook.service.js';
 import { pinterestService } from './pinterest.service.js';
-// import { youtubeService } from './youtube.service.js'; // YouTube posting not yet implemented
+import { youtubeService } from './youtube.service.js';
 import { logger } from '../lib/logger.js';
 import { env } from '../config/env.js';
 
@@ -209,9 +209,17 @@ class PublishService {
             break;
           
           case 'YOUTUBE':
-            // YouTube video upload requires special handling
-            // For now, throw a descriptive error
-            throw new Error('YouTube video upload requires direct upload through YouTube Studio. Community posts are not supported via API.');
+            // YouTube requires a video URL
+            if (post.mediaFiles.length === 0) {
+              throw new Error('YouTube posts require a video file');
+            }
+            const videoUrl = this.resolveMediaUrl(post.mediaFiles[0].mediaFile.storagePath);
+            const youtubeResult = await youtubeService.uploadVideo(
+              platform.id,
+              content,
+              videoUrl
+            );
+            postUrl = youtubeResult.postUrl;
           
           default:
             throw new Error(`Unknown platform type: ${platform.type}`);

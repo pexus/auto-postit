@@ -102,6 +102,11 @@ This guide explains how to configure each social media platform for Auto-PostIt.
 - For Company Pages, the app must be approved for **Marketing Developer Platform**
 - The user must be an Admin of the LinkedIn Page to post
 
+### Connecting Profile vs Page
+Auto-PostIt shows **two LinkedIn cards**:
+- **LinkedIn Profile** → requests profile-only scopes (works after *Share on LinkedIn*)
+- **LinkedIn Page** → requests page scopes (requires **Marketing Developer Platform** approval)
+
 ---
 
 ## Facebook
@@ -360,6 +365,10 @@ GOOGLE_CALLBACK_URL=https://your-domain.com/public/oauth/youtube/callback
 4. **"Access denied" or "Forbidden" errors**
    - Check that your app has the required permissions/scopes
    - Some platforms require app review before certain permissions work
+
+5. **LinkedIn "w_organization_social not authorized"**
+   - Your app is not approved for **Marketing Developer Platform** yet
+   - Use the **LinkedIn Profile** connection while approval is pending
 
 5. **Token refresh failed**
    - The platform connection has expired

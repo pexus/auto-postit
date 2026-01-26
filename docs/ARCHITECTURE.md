@@ -109,97 +109,59 @@ services:
 backend/
 ├── src/
 │   ├── index.ts                    # Application entry point
-│   ├── app.ts                      # Express app setup
 │   │
 │   ├── config/
-│   │   ├── index.ts               # Configuration loader
-│   │   ├── database.ts            # Prisma client
-│   │   ├── redis.ts               # Redis client
-│   │   ├── queue.ts               # BullMQ setup
-│   │   └── platforms.ts           # Platform configurations
+│   │   └── env.ts                  # Environment configuration
 │   │
-│   ├── routes/
-│   │   ├── index.ts               # Route aggregator
-│   │   ├── public/                # ⚠️ NO AUTH REQUIRED
-│   │   │   ├── index.ts
-│   │   │   ├── health.routes.ts   # Health checks
-│   │   │   ├── auth.routes.ts     # Login, MFA verify
-│   │   │   └── oauth.routes.ts    # OAuth callbacks
-│   │   │
-│   │   └── protected/             # 🔒 AUTH REQUIRED
-│   │       ├── index.ts
-│   │       ├── user.routes.ts     # User profile, MFA setup
-│   │       ├── posts.routes.ts    # Post CRUD
-│   │       ├── media.routes.ts    # Media upload
-│   │       ├── accounts.routes.ts # Social accounts
-│   │       ├── queue.routes.ts    # Queue management
-│   │       └── quota.routes.ts    # Quota dashboard
+│   ├── lib/
+│   │   ├── prisma.ts               # Prisma client
+│   │   ├── redis.ts                # Redis client
+│   │   ├── encryption.ts           # Token encryption helpers
+│   │   └── logger.ts               # Logger
 │   │
 │   ├── middleware/
-│   │   ├── index.ts               # Middleware exports
-│   │   ├── auth.middleware.ts     # Session validation
-│   │   ├── mfa.middleware.ts      # MFA enforcement
-│   │   ├── rateLimit.middleware.ts
-│   │   ├── csrf.middleware.ts
-│   │   ├── validate.middleware.ts # Zod validation
-│   │   ├── quota.middleware.ts    # Quota checks
-│   │   └── error.middleware.ts    # Global error handler
+│   │   ├── auth.ts                 # Session validation
+│   │   ├── errorHandler.ts         # Global error handler
+│   │   ├── requestLogger.ts        # Request logging
+│   │   └── validate.ts             # Zod validation
 │   │
-│   ├── controllers/
-│   │   ├── auth.controller.ts
-│   │   ├── posts.controller.ts
-│   │   ├── media.controller.ts
-│   │   ├── accounts.controller.ts
-│   │   └── quota.controller.ts
-│   │
-│   ├── services/
-│   │   ├── auth.service.ts
-│   │   ├── mfa.service.ts
-│   │   ├── session.service.ts
-│   │   ├── post.service.ts
-│   │   ├── media.service.ts
-│   │   ├── quota.service.ts
-│   │   ├── encryption.service.ts
-│   │   └── platforms/
-│   │       ├── base.platform.ts   # Abstract base class
-│   │       ├── twitter.service.ts
-│   │       ├── linkedin.service.ts
-│   │       ├── facebook.service.ts
-│   │       ├── instagram.service.ts
-│   │       ├── youtube.service.ts
-│   │       └── pinterest.service.ts
-│   │
-│   ├── jobs/
-│   │   ├── index.ts               # Job registration
-│   │   ├── publish.job.ts         # Post publishing
-│   │   ├── tokenRefresh.job.ts    # Token refresh
-│   │   └── quotaReset.job.ts      # Quota tracking
+│   ├── routes/
+│   │   ├── api/                    # Authenticated API routes
+│   │   │   ├── index.ts
+│   │   │   ├── dashboard.ts
+│   │   │   ├── media.ts
+│   │   │   ├── platforms.ts
+│   │   │   ├── posts.ts
+│   │   │   ├── quota.ts
+│   │   │   ├── settings.ts
+│   │   │   └── ai.ts
+│   │   ├── auth.ts                 # Auth + MFA
+│   │   ├── health.ts               # Health checks
+│   │   ├── import.ts               # CSV/XLSX import
+│   │   └── public.ts               # Public OAuth callbacks
 │   │
 │   ├── schemas/
-│   │   ├── auth.schema.ts         # Zod schemas for auth
-│   │   ├── post.schema.ts
-│   │   ├── media.schema.ts
-│   │   └── account.schema.ts
+│   │   ├── auth.schema.ts
+│   │   └── import.schema.ts
 │   │
-│   ├── types/
-│   │   ├── index.ts
-│   │   ├── express.d.ts           # Express type extensions
-│   │   └── platforms.d.ts
-│   │
-│   └── utils/
-│       ├── logger.ts
-│       ├── crypto.ts
-│       ├── audit.ts
-│       └── helpers.ts
+│   └── services/
+│       ├── auth.service.ts
+│       ├── mfa.service.ts
+│       ├── post.service.ts
+│       ├── publish.service.ts
+│       ├── platform.service.ts
+│       ├── media.service.ts
+│       ├── import.service.ts
+│       ├── twitter.service.ts
+│       ├── linkedin.service.ts
+│       ├── facebook.service.ts
+│       ├── pinterest.service.ts
+│       ├── youtube.service.ts
+│       ├── ai.service.ts
+│       └── audit.service.ts
 │
 ├── prisma/
-│   ├── schema.prisma
-│   └── migrations/
-│
-├── tests/
-│   ├── unit/
-│   ├── integration/
-│   └── e2e/
+│   └── schema.prisma
 │
 ├── package.json
 ├── tsconfig.json
@@ -526,6 +488,8 @@ frontend/
 ---
 
 ## 7. Job Queue Architecture
+
+> **Status (Jan 2026):** Background workers/queues are planned but not yet implemented in the current codebase. Scheduled posts are stored in the database and require a future worker/cron to publish automatically.
 
 ### 7.1 Queue Design
 
