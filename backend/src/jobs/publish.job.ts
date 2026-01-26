@@ -43,7 +43,7 @@ export async function scanAndEnqueueDuePosts(limit = 50): Promise<number> {
         'publish',
         { postId: post.id, userId: post.userId } as PublishJobData,
         {
-          jobId: `publish-post-${post.id}`,
+          jobId: `publish-post-${post.id}-${Date.now()}`, // Include timestamp to allow retries
           removeOnComplete: 100,
           removeOnFail: 100,
         }

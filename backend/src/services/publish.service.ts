@@ -120,19 +120,21 @@ class PublishService {
       throw new Error('Post not found');
     }
 
-    if (!['DRAFT', 'SCHEDULED'].includes(post.status)) {
-      throw new Error('Can only publish draft or scheduled posts');
+    if (!['DRAFT', 'SCHEDULED', 'PUBLISHING'].includes(post.status)) {
+      throw new Error('Can only publish draft, scheduled, or publishing posts');
     }
 
     if (post.platforms.length === 0) {
       throw new Error('Please select at least one platform before publishing');
     }
 
-    // Update post status to PUBLISHING
-    await prisma.post.update({
-      where: { id: postId },
-      data: { status: 'PUBLISHING' },
-    });
+    // Update post status to PUBLISHING if not already
+    if (post.status !== 'PUBLISHING') {
+      await prisma.post.update({
+        where: { id: postId },
+        data: { status: 'PUBLISHING' },
+      });
+    }
 
     const results: PublishResult[] = [];
 
@@ -213,16 +215,15 @@ class PublishService {
             if (post.mediaFiles.length === 0) {
               throw new Error('YouTube posts require a video file');
             }
-            const videoUrl = this.resolveMediaUrl(post.mediaFiles[0].mediaFile.storagePath);
+            const mediaFile = post.mediaFiles[0]!.mediaFile;
+            const videoUrl = this.resolveMediaUrl(mediaFile.storagePath);
             const youtubeResult = await youtubeService.uploadVideo(
               platform.id,
               content,
               videoUrl
             );
             postUrl = youtubeResult.postUrl;
-          
-          default:
-            throw new Error(`Unknown platform type: ${platform.type}`);
+            break;
         }
 
         // Update platform status to published

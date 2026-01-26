@@ -1,5 +1,5 @@
 import { Worker, Job } from 'bullmq';
-import { publishQueue, publishQueueScheduler } from './config/queue.js';
+import { publishQueue } from './config/queue.js';
 import { scanAndEnqueueDuePosts } from './jobs/publish.job.js';
 import { publishService } from './services/publish.service.js';
 import { redis } from './lib/redis.js';
@@ -13,7 +13,7 @@ async function ensureScannerJob() {
       {},
       {
         jobId: 'scan-due-posts',
-        repeat: { cron: '*/1 * * * *' }, // every minute
+        repeat: { every: 60_000 }, // every minute
         removeOnComplete: true,
         removeOnFail: 100,
       }

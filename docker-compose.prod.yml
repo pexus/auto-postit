@@ -140,10 +140,14 @@ services:
       PINTEREST_APP_SECRET: ${PINTEREST_APP_SECRET}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     command: node dist/worker.js
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     volumes:
       - uploads:/app/uploads
       - ${MEDIA_HOST_PATH:-./media}:/app/media:ro
     networks:
+      - frontend
       - backend
 
 volumes:

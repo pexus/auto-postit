@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
 // Helper for optional URL that treats empty string as undefined
-const optionalUrl = z.string().transform(val => val === '' ? undefined : val).pipe(z.string().url().optional());
-const optionalString = z.string().transform(val => val === '' ? undefined : val).pipe(z.string().optional());
+const optionalUrl = z.string().optional().transform(val => val === '' || val === undefined ? undefined : val).pipe(z.string().url().optional());
+const optionalString = z.string().optional().transform(val => val === '' || val === undefined ? undefined : val).pipe(z.string().optional());
 
 const envSchema = z.object({
   // Server
