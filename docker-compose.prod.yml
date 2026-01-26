@@ -106,6 +106,46 @@ services:
     networks:
       - frontend
 
+  # Worker - background job processor for scheduled posts and token refresh
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: autopostit-worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-autopostit}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-autopostit}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      SESSION_SECRET: ${SESSION_SECRET}
+      COOKIE_SECRET: ${COOKIE_SECRET}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY}
+      CSRF_SECRET: ${CSRF_SECRET}
+      CORS_ORIGIN: ${CORS_ORIGIN}
+      # OAuth credentials (passed from .env)
+      TWITTER_CLIENT_ID: ${TWITTER_CLIENT_ID}
+      TWITTER_CLIENT_SECRET: ${TWITTER_CLIENT_SECRET}
+      LINKEDIN_CLIENT_ID: ${LINKEDIN_CLIENT_ID}
+      LINKEDIN_CLIENT_SECRET: ${LINKEDIN_CLIENT_SECRET}
+      FACEBOOK_APP_ID: ${FACEBOOK_APP_ID}
+      FACEBOOK_APP_SECRET: ${FACEBOOK_APP_SECRET}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      PINTEREST_APP_ID: ${PINTEREST_APP_ID}
+      PINTEREST_APP_SECRET: ${PINTEREST_APP_SECRET}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    command: node dist/worker.js
+    volumes:
+      - uploads:/app/uploads
+      - ${MEDIA_HOST_PATH:-./media}:/app/media:ro
+    networks:
+      - backend
+
 volumes:
   postgres_data:
   redis_data:
