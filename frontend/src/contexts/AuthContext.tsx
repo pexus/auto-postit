@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '@/lib/api';
+import { clearCsrfToken } from '@/lib/csrf';
 
 interface User {
   id: string;
@@ -97,6 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await api.post('/auth/logout');
     } finally {
+      clearCsrfToken();
       setState({
         isAuthenticated: false,
         isLoading: false,

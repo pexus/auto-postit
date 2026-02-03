@@ -1,0 +1,25 @@
+name: Trivy scan (manual, no SARIF)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  trivy-fs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: "fs"
+          scanners: "vuln,config"
+          severity: "HIGH,CRITICAL"
+          ignore-unfixed: true
+          format: "table"
+          exit-code: "1"
+          skip-dirs: "backend/node_modules,frontend/node_modules,backend/dist,frontend/dist"

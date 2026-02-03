@@ -81,6 +81,7 @@ class MediaServiceClass {
     try {
       await fs.mkdir(this.mediaRoot, { recursive: true });
       await fs.mkdir(this.uploadsRoot, { recursive: true });
+      await fs.mkdir(this.getUploadsTempRoot(), { recursive: true });
       logger.info({ mediaRoot: this.mediaRoot, uploadsRoot: this.uploadsRoot }, 'Media directories initialized');
     } catch (error) {
       logger.error({ err: error }, 'Failed to initialize media directories');
@@ -100,6 +101,13 @@ class MediaServiceClass {
    */
   getUploadsRoot(): string {
     return this.uploadsRoot;
+  }
+
+  /**
+   * Get the temp uploads path
+   */
+  getUploadsTempRoot(): string {
+    return path.join(this.uploadsRoot, 'tmp');
   }
 
   /**
@@ -376,6 +384,93 @@ class MediaServiceClass {
       modifiedAt: stats.mtime,
       url: this.buildFileUrl(relativePath, 'uploads'),
     };
+  }
+
+  /**
+   * Upload a file from a temp path (disk-based upload)
+   */
+  async uploadFileFromPath(
+    file: { path: string; originalname: string; mimetype: string; size?: number },
+    subfolder?: string
+  ): Promise<MediaFileInfo> {
+    try {
+      const extension = path.extname(file.originalname).toLowerCase();
+      const fileType = this.getFileType(extension);
+      
+      if (!fileType) {
+        throw new Error(`Unsupported file type: ${extension}`);
+      }
+      
+      const stats = file.size ? { size: file.size } : await fs.stat(file.path);
+      
+      // Check file size
+      const maxSize = fileType === 'image' ? env.MEDIA_MAX_IMAGE_SIZE : env.MEDIA_MAX_VIDEO_SIZE;
+      if (stats.size > maxSize) {
+        throw new Error(`File too large. Maximum size: ${Math.round(maxSize / 1024 / 1024)} MB`);
+      }
+      
+      // Generate unique filename
+      const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const uniqueId = uuidv4().slice(0, 8);
+      const safeName = file.originalname
+        .replace(/[^a-zA-Z0-9.-]/g, '_')
+        .replace(/_{2,}/g, '_');
+      const filename = `${timestamp}_${uniqueId}_${safeName}`;
+      
+      // Build target path
+      const targetFolder = subfolder ? this.sanitizePath(subfolder) : '';
+      const targetDir = path.join(this.uploadsRoot, targetFolder);
+      const targetPath = path.join(targetDir, filename);
+      const relativePath = targetFolder ? `${targetFolder}/${filename}` : filename;
+      
+      // Ensure directory exists
+      await fs.mkdir(targetDir, { recursive: true });
+      
+      // Move file into place
+      await this.moveFile(file.path, targetPath);
+      
+      const finalStats = await fs.stat(targetPath);
+      
+      logger.info({ path: relativePath, size: finalStats.size }, 'File uploaded');
+      
+      return {
+        name: filename,
+        path: relativePath,
+        absolutePath: targetPath,
+        type: fileType,
+        extension,
+        mimeType: MIME_TYPES[extension] || 'application/octet-stream',
+        size: finalStats.size,
+        createdAt: finalStats.birthtime,
+        modifiedAt: finalStats.mtime,
+        url: this.buildFileUrl(relativePath, 'uploads'),
+      };
+    } catch (error) {
+      await this.safeUnlink(file.path);
+      throw error;
+    }
+  }
+
+  private async moveFile(sourcePath: string, targetPath: string): Promise<void> {
+    try {
+      await fs.rename(sourcePath, targetPath);
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException;
+      if (err.code === 'EXDEV') {
+        await fs.copyFile(sourcePath, targetPath);
+        await this.safeUnlink(sourcePath);
+        return;
+      }
+      throw error;
+    }
+  }
+
+  private async safeUnlink(filePath: string): Promise<void> {
+    try {
+      await fs.unlink(filePath);
+    } catch {
+      // Ignore cleanup failures
+    }
   }
 
   /**

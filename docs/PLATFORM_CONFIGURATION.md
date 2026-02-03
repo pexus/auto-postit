@@ -114,40 +114,66 @@ Auto-PostIt shows **two LinkedIn cards**:
 ### Requirements
 - Facebook Developer Account
 - Facebook Page (for posting)
-- Facebook Business verification (for production apps)
+- Optional: Business Portfolio (recommended for production)
 
 ### Setup Steps
 
-1. **Create a Facebook App**
-   - Go to https://developers.facebook.com/
-   - Click "My Apps" → "Create App"
-   - Choose "Business" app type
-   - Fill in app details
+1. **Go to the App Dashboard**
+    - Open https://developers.facebook.com/apps/
+    - If you land on a marketing page (like “Social technologies”), use the **Apps** URL above.
+    - If you see **Create App**, click it.
 
-2. **Add Products**
-   - In your app dashboard, add:
-     - **Facebook Login** (click "Set Up")
-     - **Pages API** (if not auto-added)
+2. **If “Create App” is missing or not clickable**
+    - You are not fully registered as a developer or your account is restricted.
+    - Complete registration here: https://developers.facebook.com/async/registration
+    - Then return to https://developers.facebook.com/apps/
 
-3. **Configure Facebook Login**
-   - Go to Facebook Login → Settings
-   - Add redirect URI: `https://your-domain.com/public/oauth/facebook/callback`
-   - Enable:
-     - Client OAuth Login
-     - Web OAuth Login
+3. **Create the App**
+    - Direct link: https://developers.facebook.com/apps/create/
+    - **App Details:**
+       - App name
+       - Contact email
+    - **Use Case:** choose **“Manage everything on your Page”**
+       - Required permissions auto-added:
+          - `business_management`
+          - `pages_show_list`
+          - `public_profile`
+       - Add optional permissions for posting:
+          - `pages_manage_posts`
+          - `pages_read_engagement`
+          - `pages_manage_engagement`
+    - **Business Portfolio:** skip for development; connect for production
 
-4. **Configure Permissions**
-   - Go to App Review → Permissions and Features
-   - Request:
-     - `pages_show_list`
-     - `pages_read_engagement`
-     - `pages_manage_posts`
+4. **Configure Facebook Login**
+    - In App Dashboard → **Facebook Login** → **Settings**
+    - Add **Valid OAuth Redirect URIs** (HTTPS only):
+       - https://your-domain.com/public/oauth/facebook/callback
+       - https://your-ngrok-subdomain.ngrok-free.app/public/oauth/facebook/callback
+    - Enable:
+       - Client OAuth Login
+       - Web OAuth Login
+    - Save changes
 
-5. **Get Credentials**
-   - Go to Settings → Basic
-   - Copy **App ID** (Client ID) and **App Secret** (Client Secret)
+5. **Enable Permissions**
+    - App Dashboard → **Use cases** → **Manage everything on your Page**
+    - Add optional permissions you need:
+       - `pages_manage_posts`
+       - `pages_read_engagement`
+       - `pages_manage_engagement`
+    - These work in Development Mode for app admins/testers
 
-6. **Configure Environment Variables**
+6. **Get Credentials**
+   - Go to **Settings** → **Basic** (left sidebar)
+   - Copy:
+     - **App ID** (use as FACEBOOK_APP_ID)
+     - **App Secret** (click "Show", then copy - use as FACEBOOK_APP_SECRET)
+
+7. **Add Test Users (Development Mode)**
+   - Go to **Roles** → **Test Users**
+   - Create test users or add yourself as a test admin
+   - In Development Mode, only admins, developers, and testers can use the app
+
+8. **Configure Environment Variables**
    ```env
    FACEBOOK_APP_ID=your_app_id
    FACEBOOK_APP_SECRET=your_app_secret
@@ -155,49 +181,92 @@ Auto-PostIt shows **two LinkedIn cards**:
    ```
 
 ### Notes
-- Development mode: Only app admins can use the app
-- Production mode: Requires Business verification
-- Posts go to connected Facebook Pages, not personal profiles
+- **Development Mode**: Only app roles (admins, developers, testers) can authenticate and use the app
+- **Production Mode**: Requires App Review to approve requested permissions
+- **Business Verification**: May be required for certain permissions and production use
+- **HTTPS required**: Meta currently rejects non-HTTPS redirect URIs. Use a public HTTPS URL (VPS) or an HTTPS tunnel (e.g., ngrok) for local testing.
+- Posts are published to **Facebook Pages** you manage, not personal profiles
+- The user must be an admin or have posting permissions on the Page
+- Rate limits apply based on your app's usage tier
+
+### Local dev with HTTPS (ngrok)
+1. Start a tunnel to your backend (example using ngrok):
+   - `ngrok http 3001`
+2. Copy the HTTPS forwarding URL, e.g. `https://abcd-1234.ngrok-free.app`
+3. Set your callback URL to:
+   - `https://abcd-1234.ngrok-free.app/public/oauth/facebook/callback`
+4. Update your env:
+   ```env
+   FACEBOOK_CALLBACK_URL=https://abcd-1234.ngrok-free.app/public/oauth/facebook/callback
+   ```
+5. Add the same URL under **Facebook Login → Settings → Valid OAuth Redirect URIs**
+
+### Moving to Production
+1. Complete your app development and testing
+2. Add Privacy Policy URL in Settings → Basic
+3. Submit for App Review (App Review → Permissions and Features)
+4. Request review for permissions like `pages_manage_posts`
+5. Once approved, switch from Development to Live mode
 
 ---
 
 ## Instagram
 
 ### Requirements
-- Facebook Developer Account (same as above)
+- Facebook Developer Account (same as Facebook setup)
 - Instagram Business or Creator Account
-- Facebook Page connected to Instagram
+- Facebook Page connected to your Instagram account
+- Same Facebook app from Facebook setup
 
 ### Setup Steps
 
-1. **Connect Instagram to Facebook Page**
-   - On Instagram app: Settings → Account → Linked Accounts → Facebook
-   - Or: On Facebook Page Settings → Instagram
-
-2. **Convert to Business/Creator Account**
-   - On Instagram: Settings → Account → Switch to Professional Account
+1. **Convert Instagram to Business/Creator Account**
+   - Open Instagram app on mobile
+   - Go to Settings → Account → Switch to Professional Account
    - Choose Business or Creator
+   - Complete the setup
 
-3. **Use Same Facebook App**
-   - Instagram API uses Facebook's Graph API
-   - Add permissions to your Facebook app:
+2. **Connect Instagram to Facebook Page**
+   - **Option A (via Instagram):**
+     - Instagram app: Settings → Account → Linked Accounts → Facebook
+     - Log in to Facebook and connect your Page
+   - **Option B (via Facebook):**
+     - Go to your Facebook Page Settings → Instagram
+     - Click "Connect Account" and log in to Instagram
+
+3. **Configure Your Existing Facebook App**
+   - Use the same app you created for Facebook
+   - In your app dashboard, go to "Use cases"
+   - Add or customize: **"Manage messaging & content on Instagram"**
+   - This will add Instagram-related permissions:
      - `instagram_basic`
      - `instagram_content_publish`
+     - `instagram_manage_comments`
+     - `instagram_manage_insights`
 
-4. **Configure Environment Variables**
-   - Uses same credentials as Facebook:
+4. **Alternative: Add Instagram Permissions to Existing Use Case**
+   - If you're using "Manage everything on your Page", you can add:
+     - `instagram_basic`
+     - `instagram_content_publish`
+   - These are optional permissions you can enable in the use case customization
+
+5. **Configure Environment Variables**
    ```env
+   # Uses same Facebook credentials
    FACEBOOK_APP_ID=your_app_id
    FACEBOOK_APP_SECRET=your_app_secret
-   FACEBOOK_CALLBACK_URL=https://your-domain.com/public/oauth/facebook/callback
    INSTAGRAM_CALLBACK_URL=https://your-domain.com/public/oauth/instagram/callback
    ```
 
 ### Notes
-- Instagram posts REQUIRE at least one image or video
-- Text-only posts are not supported
+- Instagram posts **REQUIRE at least one image or video** - text-only posts are not supported
+- Uses Facebook's Graph API for Instagram Business accounts
+- The Instagram account must be a Business or Creator account (personal accounts don't support API posting)
+- The Instagram account must be linked to a Facebook Page you manage
+- In Development Mode, only app roles can use the app
+- Production requires App Review for Instagram permissions
+- Carousel posts (multiple images) are supported
 - Reels can be posted as videos
-- Carousel posts (multiple images) require additional API setup
 
 ---
 

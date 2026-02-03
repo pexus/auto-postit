@@ -97,11 +97,18 @@ importRouter.get('/template.csv', (_req: Request, res: Response) => {
  * Download Excel template
  */
 importRouter.get('/template.xlsx', (_req: Request, res: Response) => {
-  const xlsx = importService.generateExcelTemplate();
-  
-  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  res.setHeader('Content-Disposition', 'attachment; filename="auto-postit-import-template.xlsx"');
-  res.send(xlsx);
+  importService.generateExcelTemplate()
+    .then((xlsx) => {
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="auto-postit-import-template.xlsx"');
+      res.send(xlsx);
+    })
+    .catch((error) => {
+      res.status(500).json({
+        success: false,
+        error: { message: error instanceof Error ? error.message : 'Failed to generate template' },
+      });
+    });
 });
 
 /**

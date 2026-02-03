@@ -4,9 +4,12 @@ import helmet from 'helmet';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import session from 'express-session';
+import csurf from 'csurf';
 import { rateLimit } from 'express-rate-limit';
 import { logger } from './lib/logger.js';
 import { env } from './config/env.js';
+import { mediaService } from './services/media.service.js';
+import { RedisSessionStore } from './lib/redisSessionStore.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { requestLogger } from './middleware/requestLogger.js';
 
@@ -62,7 +65,7 @@ app.use(generalLimiter);
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-app.use(cookieParser(env.COOKIE_SECRET));
+app.use(cookieParser([env.CSRF_SECRET, env.COOKIE_SECRET]));
 
 // =============================================================================
 // SESSION MIDDLEWARE
@@ -74,7 +77,10 @@ const useSecureCookies = env.NODE_ENV === 'production' &&
   !env.CORS_ORIGIN.includes('localhost') && 
   !env.CORS_ORIGIN.includes('127.0.0.1');
 
+const sessionStore = new RedisSessionStore();
+
 app.use(session({
+  store: sessionStore,
   secret: env.SESSION_SECRET,
   name: 'autopostit.sid',
   resave: false,
@@ -85,6 +91,18 @@ app.use(session({
     sameSite: 'lax',
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
   },
+}));
+
+// CSRF protection (token via X-CSRF-Token header)
+app.use(csurf({
+  cookie: {
+    key: 'autopostit.csrf',
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: useSecureCookies,
+    signed: true,
+  },
+  value: (req) => (req.headers['x-csrf-token'] as string) || '',
 }));
 
 // =============================================================================
@@ -121,9 +139,16 @@ app.use(errorHandler);
 
 const PORT = env.PORT;
 
-app.listen(PORT, () => {
-  logger.info(`🚀 Server running on port ${PORT}`);
-  logger.info(`📍 Environment: ${env.NODE_ENV}`);
-});
+mediaService.init()
+  .then(() => {
+    app.listen(PORT, () => {
+      logger.info(`🚀 Server running on port ${PORT}`);
+      logger.info(`📍 Environment: ${env.NODE_ENV}`);
+    });
+  })
+  .catch((error) => {
+    logger.error({ err: error }, 'Failed to initialize media directories');
+    process.exit(1);
+  });
 
 export { app };

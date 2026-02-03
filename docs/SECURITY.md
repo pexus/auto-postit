@@ -537,13 +537,24 @@ LINKEDIN_CLIENT_SECRET=""
 # ... etc
 
 # Frontend URL (for CORS)
-FRONTEND_URL="https://autopostit.yourdomain.com"
+CORS_ORIGIN="https://autopostit.yourdomain.com"
 
 # Rate Limiting
 REDIS_URL="redis://localhost:6379"
+
+# Media storage quotas (per user)
+MEDIA_MAX_USER_STORAGE="10737418240"
 ```
 
 ---
+
+## 11.1 Secret File Permissions
+
+- Store production environment files outside the repo (for example: `/etc/auto-postit/auto-postit.env`).
+- Restrict access to the owning service user (or root): `chown root:root /etc/auto-postit/auto-postit.env` and `chmod 600 /etc/auto-postit/auto-postit.env`.
+- If you run Docker rootless, change the owner to the user running `docker compose` and keep `chmod 600`.
+- Do not mount or bake `.env` files into container images; pass them at runtime.
+- Optional helper: `scripts/lockdown-env.sh /etc/auto-postit/auto-postit.env`
 
 ## 12. Security Checklist
 
@@ -561,6 +572,9 @@ Before deployment, verify:
 - [ ] Audit logging capturing all auth events
 - [ ] Error messages don't leak sensitive info
 - [ ] File uploads restricted to allowed types/sizes
+- [ ] Secret files are owned by root (or service user) and set to `chmod 600`
+- [ ] Container images do not contain `.env` or secrets
+- [ ] CI security scans are configured with appropriate visibility (GitHub Actions logs are visible to anyone with read access on public repos)
 
 ---
 
@@ -577,4 +591,4 @@ If security breach suspected:
 
 ---
 
-*Last Updated: January 12, 2026*
+*Last Updated: February 2, 2026*

@@ -28,6 +28,15 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+/**
+ * GET /auth/csrf
+ * Provide CSRF token for SPA clients
+ */
+authRouter.get('/csrf', (req: Request, res: Response) => {
+  const token = req.csrfToken ? req.csrfToken() : '';
+  res.json({ csrfToken: token });
+});
+
 // Helper to get client info for audit logs
 function getClientInfo(req: Request) {
   return {

@@ -8,12 +8,13 @@ RUN apk add --no-cache openssl
 # Copy package files
 COPY package*.json ./
 COPY prisma ./prisma/
+COPY tsconfig*.json ./
 
 # Install dependencies
 RUN npm ci
 
 # Copy source code
-COPY . .
+COPY src ./src
 
 # Generate Prisma client
 RUN npx prisma generate
@@ -35,7 +36,7 @@ RUN adduser --system --uid 1001 expressjs
 
 # Copy package files and install production dependencies
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm ci --omit=dev
 
 # Copy Prisma schema and generate client
 COPY prisma ./prisma/

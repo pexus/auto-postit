@@ -1,0 +1,11 @@
+.env
+.env.*
+node_modules
+dist
+uploads
+media
+tmp
+*.log
+.git
+.github
+.vscode

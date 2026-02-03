@@ -1,5 +1,5 @@
 import { parse } from 'csv-parse/sync';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { v4 as uuidv4 } from 'uuid';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
@@ -45,35 +45,47 @@ class ImportServiceClass {
   /**
    * Parse Excel file
    */
-  parseExcel(buffer: Buffer): Record<string, string>[] {
-    const workbook = XLSX.read(buffer, { type: 'buffer' });
+  async parseExcel(buffer: Buffer): Promise<Record<string, string>[]> {
+    const workbook = new ExcelJS.Workbook();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await workbook.xlsx.load(buffer as any);
     
-    // Get the first sheet (or "Posts" sheet if it exists)
-    const sheetName = workbook.SheetNames.includes('Posts')
-      ? 'Posts'
-      : workbook.SheetNames[0];
-    
-    if (!sheetName) {
-      return [];
-    }
-    
-    const worksheet = workbook.Sheets[sheetName];
+    const worksheet = workbook.getWorksheet('Posts') ?? workbook.worksheets[0];
     if (!worksheet) {
       return [];
     }
     
-    const records = XLSX.utils.sheet_to_json<Record<string, string>>(worksheet, {
-      defval: '',
+    const headerRow = worksheet.getRow(1);
+    const headers: string[] = [];
+    headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+      headers[colNumber - 1] = cell.text.toLowerCase().trim();
     });
     
-    // Normalize column names to lowercase
-    return records.map((row) => {
-      const normalizedRow: Record<string, string> = {};
-      for (const key of Object.keys(row)) {
-        normalizedRow[key.toLowerCase().trim()] = String(row[key]);
+    if (headers.length === 0) {
+      return [];
+    }
+    
+    const records: Record<string, string>[] = [];
+    for (let rowIndex = 2; rowIndex <= worksheet.rowCount; rowIndex += 1) {
+      const row = worksheet.getRow(rowIndex);
+      const record: Record<string, string> = {};
+      let hasData = false;
+      
+      headers.forEach((header, index) => {
+        if (!header) return;
+        const cellText = row.getCell(index + 1).text ?? '';
+        if (cellText.trim()) {
+          hasData = true;
+        }
+        record[header] = cellText;
+      });
+      
+      if (hasData) {
+        records.push(record);
       }
-      return normalizedRow;
-    });
+    }
+    
+    return records;
   }
 
   /**
@@ -282,7 +294,7 @@ class ImportServiceClass {
       file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
       file.originalname.endsWith('.xlsx')
     ) {
-      rows = this.parseExcel(file.buffer);
+      rows = await this.parseExcel(file.buffer);
     } else {
       return {
         success: false,
@@ -367,31 +379,35 @@ class ImportServiceClass {
   /**
    * Generate Excel template
    */
-  generateExcelTemplate(): Buffer {
-    const workbook = XLSX.utils.book_new();
+  async generateExcelTemplate(): Promise<Buffer> {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Posts');
     
-    // Create worksheet from sample data
-    const worksheet = XLSX.utils.json_to_sheet(SAMPLE_TEMPLATE_DATA, {
-      header: [...CSV_HEADERS],
+    const columnWidths: Record<string, number> = {
+      platform: 12,
+      scheduled_date: 24,
+      content: 50,
+      media_urls: 40,
+      tags: 25,
+      link: 30,
+      title: 30,
+      description: 40,
+      board: 15,
+      privacy: 10,
+    };
+    
+    worksheet.columns = CSV_HEADERS.map((header) => ({
+      header,
+      key: header,
+      width: columnWidths[header] ?? 20,
+    }));
+    
+    SAMPLE_TEMPLATE_DATA.forEach((row) => {
+      worksheet.addRow(row);
     });
-
-    // Set column widths
-    worksheet['!cols'] = [
-      { wch: 12 }, // platform
-      { wch: 24 }, // scheduled_date
-      { wch: 50 }, // content
-      { wch: 40 }, // media_urls
-      { wch: 25 }, // tags
-      { wch: 30 }, // link
-      { wch: 30 }, // title
-      { wch: 40 }, // description
-      { wch: 15 }, // board
-      { wch: 10 }, // privacy
-    ];
-
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Posts');
     
-    return Buffer.from(XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }));
+    const buffer = await workbook.xlsx.writeBuffer();
+    return Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer as ArrayBuffer);
   }
 
   /**

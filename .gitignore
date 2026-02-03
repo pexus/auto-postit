@@ -7,7 +7,7 @@ build/
 .next/
 
 # Environment files (NEVER commit actual secrets)
-# Only env.example and env.prod.example should be committed
+# Only env.example should be committed
 .env
 .env.local
 .env.*.local

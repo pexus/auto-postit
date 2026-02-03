@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   X,
 } from 'lucide-react';
+import { getCsrfToken } from '@/lib/csrf';
 
 interface ImportError {
   row: number;
@@ -111,10 +112,14 @@ export function ImportPage() {
       const formData = new FormData();
       formData.append('file', selectedFile);
       formData.append('dry_run', String(isDryRun));
+      const csrfToken = await getCsrfToken();
 
       const response = await fetch('/api/import/spreadsheet', {
         method: 'POST',
         credentials: 'include',
+        headers: {
+          'X-CSRF-Token': csrfToken,
+        },
         body: formData,
       });
 

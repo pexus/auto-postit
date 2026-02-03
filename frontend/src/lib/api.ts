@@ -1,3 +1,5 @@
+import { getCsrfToken } from './csrf';
+
 const API_BASE = '';
 
 interface RequestConfig {
@@ -35,6 +37,11 @@ class ApiClient {
       headers['Content-Type'] = 'application/json';
     }
     
+    const methodUpper = method.toUpperCase();
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(methodUpper) && !headers['X-CSRF-Token']) {
+      headers['X-CSRF-Token'] = await getCsrfToken();
+    }
+
     const response = await fetch(url, {
       method,
       headers,

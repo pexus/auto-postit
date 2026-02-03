@@ -69,6 +69,20 @@ export function errorHandler(
   res: Response,
   _next: NextFunction
 ): void {
+  if ((err as { code?: string }).code === 'EBADCSRFTOKEN') {
+    logger.warn({
+      path: req.path,
+      method: req.method,
+    }, 'Invalid CSRF token');
+    res.status(403).json({
+      error: {
+        message: 'Invalid CSRF token',
+        code: 'CSRF_INVALID',
+      },
+    });
+    return;
+  }
+
   // Log the error
   if (err instanceof AppError && err.isOperational) {
     logger.warn({

@@ -74,8 +74,8 @@ Built for small business owners, content creators, and music labels who need a s
 
 2. **Configure environment**
    ```bash
-   cp env.prod.example .env.prod
-   # Edit .env.prod with your settings
+   cp env.example .env
+   # Edit .env with your settings
    ```
 
 3. **Build and start**

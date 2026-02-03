@@ -63,6 +63,7 @@ const envSchema = z.object({
   MEDIA_UPLOADS_PATH: z.string().default('./uploads'),
   MEDIA_MAX_IMAGE_SIZE: z.string().default('10485760').transform(Number), // 10 MB
   MEDIA_MAX_VIDEO_SIZE: z.string().default('524288000').transform(Number), // 500 MB
+  MEDIA_MAX_USER_STORAGE: z.string().default('10737418240').transform(Number), // 10 GB per user
   MEDIA_BASE_URL: optionalString, // Optional CDN URL
   
   // OpenAI

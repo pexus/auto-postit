@@ -1,18 +1,32 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
-import { createReadStream } from 'fs';
+import path from 'path';
+import { randomUUID } from 'crypto';
+import { createReadStream, promises as fs } from 'fs';
 import { stat } from 'fs/promises';
 import { mediaService, SUPPORTED_EXTENSIONS } from '../../services/media.service.js';
 import { logger } from '../../lib/logger.js';
 import { prisma } from '../../lib/prisma.js';
+import { env } from '../../config/env.js';
 
 export const mediaRouter = Router();
 
-// Configure multer for memory storage
+const maxUploadSize = Math.max(env.MEDIA_MAX_IMAGE_SIZE, env.MEDIA_MAX_VIDEO_SIZE);
+
+// Configure multer for disk-based temp uploads
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => {
+      cb(null, mediaService.getUploadsTempRoot());
+    },
+    filename: (_req, file, cb) => {
+      const extension = path.extname(file.originalname).toLowerCase();
+      const uniqueName = `${Date.now()}_${randomUUID()}${extension}`;
+      cb(null, uniqueName);
+    },
+  }),
   limits: {
-    fileSize: 500 * 1024 * 1024, // 500MB max (validated further in service)
+    fileSize: maxUploadSize,
   },
   fileFilter: (_req, file, cb) => {
     const ext = '.' + file.originalname.split('.').pop()?.toLowerCase();
@@ -219,23 +233,62 @@ mediaRouter.post(
         return;
       }
       
+      const userId = req.userId;
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
       const subfolder = req.body.folder as string | undefined;
+      const fileSize = req.file.size;
+
+      // Enforce per-user storage quota
+      if (env.MEDIA_MAX_USER_STORAGE > 0) {
+        const usage = await prisma.mediaFile.aggregate({
+          where: {
+            userId,
+            storagePath: { startsWith: 'uploads:' },
+          },
+          _sum: { size: true },
+        });
+
+        const currentUsage = usage._sum.size ?? 0;
+        if (currentUsage + fileSize > env.MEDIA_MAX_USER_STORAGE) {
+          await fs.unlink(req.file.path).catch(() => undefined);
+          res.status(413).json({ error: 'Storage quota exceeded' });
+          return;
+        }
+      }
       
-      const fileInfo = await mediaService.uploadFile(
+      const fileInfo = await mediaService.uploadFileFromPath(
         {
-          buffer: req.file.buffer,
+          path: req.file.path,
           originalname: req.file.originalname,
           mimetype: req.file.mimetype,
+          size: fileSize,
         },
         subfolder
       );
+
+      const mediaFile = await prisma.mediaFile.create({
+        data: {
+          userId,
+          filename: fileInfo.name,
+          storagePath: `uploads:${fileInfo.path}`,
+          mimeType: fileInfo.mimeType,
+          size: fileInfo.size,
+          width: null,
+          height: null,
+          duration: null,
+        },
+      });
       
       logger.info(
-        { filename: fileInfo.name, size: fileInfo.size, type: fileInfo.type },
+        { filename: fileInfo.name, size: fileInfo.size, type: fileInfo.type, mediaFileId: mediaFile.id },
         'File uploaded via API'
       );
       
-      res.status(201).json(fileInfo);
+      res.status(201).json({ ...fileInfo, mediaFileId: mediaFile.id });
     } catch (error) {
       next(error);
     }
@@ -275,7 +328,19 @@ mediaRouter.delete('/uploads/*', async (req: Request, res: Response, next: NextF
       return;
     }
     
+    const userId = req.userId;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
     await mediaService.deleteUploadedFile(filePath);
+    await prisma.mediaFile.deleteMany({
+      where: {
+        userId,
+        storagePath: `uploads:${filePath}`,
+      },
+    });
     res.status(204).send();
   } catch (error) {
     next(error);
