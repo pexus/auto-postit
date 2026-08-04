@@ -1,123 +1,51 @@
 # Auto-PostIt
 
-> Active development, but fully usable for single-user self-hosted deployments.
+Auto-PostIt is being revived as a focused, single-user, self-hosted application for scheduling URL-based social posts. The current repository contains an earlier implementation; provider code and features present in the tree must not be interpreted as production support until they pass the revival plan's gates.
 
-A minimalist, self-hosted social media scheduling and auto-posting application designed for single-user operation. A simpler alternative to Postiz, focusing on ease of use, reliability, and staying within free API tier limits.
+## Focused MVP
 
-## 🎯 Purpose
+Every post must contain at least one valid `http://` or `https://` URL. A post may include one image or no image; more than one image is rejected. Video uploads are not supported anywhere, including YouTube video uploads.
 
-Built for small business owners, content creators, and music labels who need a simple, self-hosted solution to schedule and publish content across multiple social media platforms without the complexity of enterprise SaaS tools.
+The destination allowlist is exactly:
 
-## ✨ Features
+- **X**
+- **Facebook Page**
+- **YouTube Posts/Community Posts**, gated on an official API proof of concept
 
-- **Multi-Platform Support**: X (Twitter), LinkedIn (Profile + Company Pages), Facebook Pages, Instagram Business, YouTube, Pinterest
-- **Scheduling**: Drafts, scheduled posts, and immediate publishing
-- **Media Management**: Upload and manage images/videos
-- **Refine with AI**: Improve post copy using OpenAI API (optional)
-- **Import**: CSV/XLSX import for bulk scheduling
-- **Quota Tracking**: Usage dashboard to stay within platform limits
-- **Security**: Encrypted token storage, optional TOTP-based MFA
-- **Self-Hosted**: Docker-based deployment (default port 8080)
+LinkedIn, Instagram, Pinterest, and all other providers are explicitly out of scope. YouTube Posts are **not currently claimed as supported**: an adapter must not be implemented until an official, documented API proves that a post can be created. Browser automation and undocumented endpoints are prohibited.
 
-## 📋 Documentation
+This first revival change is documentation-only. Runtime behavior has not yet been aligned with this scope.
 
-| Document | Description |
-|----------|-------------|
-| [PRD.md](docs/PRD.md) | Product Requirements Document |
-| [SECURITY.md](docs/SECURITY.md) | Security architecture and guidelines |
-| [PLATFORM_LIMITS.md](docs/PLATFORM_LIMITS.md) | API quotas and rate limits per platform |
-| [PLATFORM_CONFIGURATION.md](docs/PLATFORM_CONFIGURATION.md) | OAuth setup for each platform |
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture and deployment |
-| [DEVELOPMENT.md](docs/DEVELOPMENT.md) | Development standards and workflow |
+## Documentation
 
-## 🛠️ Tech Stack
+Start with the revival design documents:
+
+| Document | Purpose |
+| --- | --- |
+| [Current Design](docs/design/CURRENT-DESIGN.md) | Describes the existing application, data, scheduling, deployment, and public-repository secret boundaries. |
+| [Revival Plan](docs/design/REVIVAL-PLAN.md) | Defines the phased path from contract enforcement through provider certification and private deployment. |
+
+Additional historical/reference documentation remains under [`docs/`](docs/). Where older documents conflict with the two design documents above, the focused MVP and revival plan take precedence.
+
+## Current technology
 
 | Component | Technology |
-|-----------|------------|
-| Backend | Node.js, Express.js, TypeScript |
-| Frontend | React, Vite, Tailwind CSS, shadcn/ui |
-| Database | PostgreSQL |
-| Queue | BullMQ, Redis |
-| ORM | Prisma |
-| Auth | Passport.js, otplib (TOTP) |
-| Container | Docker, Docker Compose |
+| --- | --- |
+| Frontend | React, TypeScript, Vite, Tailwind CSS |
+| API | Node.js, Express, TypeScript |
+| Database | PostgreSQL with Prisma |
+| Queue/worker | Redis and BullMQ |
+| Media | Local persistent storage |
+| Deployment | Docker Compose behind Apache |
 
-## 📅 Development Status
+## Production target
 
-- [x] Requirements & Research
-- [x] Documentation
-- [x] Project Scaffolding
-- [x] Authentication & MFA
-- [x] Core Post Management
-- [x] Platform Integrations
-- [x] Scheduling System
-- [x] Quota Management
-- [ ] UI/UX (ongoing polish)
-- [x] Docker Deployment
-- [ ] Testing
+The supported target will be an Ubuntu 24.04 VPS using native Docker Compose v2. Apache handles public TLS and reverse proxying. Auto-PostIt containers bind to localhost, while PostgreSQL and Redis remain private/internal.
 
-## 🚀 Getting Started
+Production secrets remain outside the repository at `/etc/auto-postit/auto-postit.env` with mode `600`. Never commit OAuth credentials, tokens, populated `.env` files, passwords, private media, dumps, backups, or other sensitive material.
 
-### Prerequisites
+Implementation and deployment instructions will be updated in later phases as the documented controls are built and verified.
 
-- Node.js >= 20.0.0
-- Docker & Docker Compose
-- Git
+## License
 
-### Docker (Recommended)
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/pexus/auto-postit.git
-   cd auto-postit
-   ```
-
-2. **Configure environment**
-   ```bash
-   cp env.example .env
-   # Edit .env with your settings
-   ```
-
-3. **Build and start**
-   ```bash
-   scripts/docker-build.sh
-   scripts/docker-up.sh
-   ```
-
-4. **Open the app**
-   - Web UI: http://localhost:8080
-   - API: http://localhost:8080/api
-
-### Project Structure
-
-```
-auto-postit/
-├── backend/           # Express.js API
-│   ├── src/
-│   │   ├── config/    # Environment configuration
-│   │   ├── lib/       # Shared utilities
-│   │   ├── middleware/# Express middleware
-│   │   └── routes/    # API routes
-│   └── prisma/        # Database schema
-├── frontend/          # React SPA
-│   └── src/
-│       ├── components/# UI components
-│       ├── contexts/  # React contexts
-│       ├── layouts/   # Page layouts
-│       ├── lib/       # Utilities
-│       └── pages/     # Page components
-├── docs/              # Documentation
-└── docker-compose.yml # Development services
-```
-
-## 📄 License
-
-MIT License - See [LICENSE](LICENSE) for details.
-
-## 🤝 Contributing
-
-This project is currently in early development. Contribution guidelines will be added once the core functionality is stable.
-
----
-
-*Last Updated: January 26, 2026*
+Auto-PostIt is available under the [MIT License](LICENSE).
